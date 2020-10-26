@@ -87,8 +87,8 @@ fn main() {
                         let res = expr
                             .idents_to_indices()
                             .substitute_defs(defs.ident_to_def())
-                            .and_then(|expr| expr.indices_to_thunks().eval())
-                            .and_then(|expr| expr.thunks_to_indices());
+                            .and_then(|expr| expr.into_lazy().eval())
+                            .and_then(|expr| expr.into_non_lazy());
                         match res {
                             Ok(expr) => print_expr(expr, defs.def_to_ident()),
                             Err(err) => println!("{}", err),

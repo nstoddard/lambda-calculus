@@ -381,8 +381,8 @@ impl Component for LambdaCalculus {
                         let res = expr
                             .idents_to_indices()
                             .substitute_defs(self.persistent_data.borrow().defs.ident_to_def())
-                            .and_then(|expr| expr.indices_to_thunks().eval())
-                            .and_then(|expr| expr.thunks_to_indices());
+                            .and_then(|expr| expr.into_lazy().eval())
+                            .and_then(|expr| expr.into_non_lazy());
                         self.eval_results.push(match res {
                             Ok(expr) => EvalResult::new(
                                 input,

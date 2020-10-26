@@ -19,7 +19,7 @@ const EVAL_RECURSION_LIMIT: u16 = 300;
 #[cfg(not(debug_assertions))]
 const EVAL_RECURSION_LIMIT: u16 = 3000;
 
-const THUNKS_TO_INDICES_RECURSION_LIMIT: u16 = 200;
+const INTO_NON_LAZY_RECURSION_LIMIT: u16 = 200;
 
 impl Display for Expr<Ident> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -55,6 +55,18 @@ impl Display for Expr<Ident> {
 }
 
 impl<Var> Expr<Var> {
+    /// Shorthand for creating an `Expr::Fn` without needing to call `Box::new`.
+    pub fn f(param: Ident, body: Self) -> Self {
+        Self::Fn(param, Box::new(body))
+    }
+
+    /// Shorthand for creating an `Expr::Apply` without needing to call `Box::new`.
+    pub fn apply(f: Self, arg: Self) -> Self {
+        Self::Apply(Box::new(f), Box::new(arg))
+    }
+}
+
+impl LazyExpr {
     /// Shorthand for creating an `Expr::Fn` without needing to call `Box::new`.
     pub fn f(param: Ident, body: Self) -> Self {
         Self::Fn(param, Box::new(body))
@@ -191,13 +203,13 @@ impl Expr<Var> {
         }
     }
 
-    /// Converts parameters to use thunks, for better performance when evaluating.
-    pub fn indices_to_thunks(self) -> Expr<ThunkVar> {
+    /// Converts the `Expr` to a `LazyExpr`.
+    pub fn into_lazy(self) -> LazyExpr {
         match self {
-            Self::Fn(param, body) => Expr::f(param, body.indices_to_thunks()),
-            Self::Var(Var::Param(index)) => Expr::Var(ThunkVar::Param(index)),
-            Self::Var(Var::Free(ident)) => Expr::Var(ThunkVar::Free(ident)),
-            Self::Apply(f, arg) => Expr::apply(f.indices_to_thunks(), arg.indices_to_thunks()),
+            Self::Fn(param, body) => LazyExpr::f(param, body.into_lazy()),
+            Self::Var(Var::Param(index)) => LazyExpr::Var(Var::Param(index)),
+            Self::Var(Var::Free(ident)) => LazyExpr::Var(Var::Free(ident)),
+            Self::Apply(f, arg) => LazyExpr::apply(f.into_lazy(), arg.into_lazy()),
         }
     }
 
@@ -250,15 +262,14 @@ impl Expr<Var> {
     }
 }
 
-impl Expr<ThunkVar> {
+impl LazyExpr {
     /// Replaces the parameter at the given depth with the given thunk.
-    fn substitute(self, depth: Index, thunk: &Thunk) -> Self {
+    fn substitute(self, depth: Index, thunk: &Rc<RefCell<Thunk>>) -> Self {
         match self {
             Self::Fn(param, body) => Self::f(param, body.substitute(depth + 1, thunk)),
-            Self::Var(ThunkVar::Param(depth2)) if depth2 == depth => {
-                Self::Var(ThunkVar::Thunk(thunk.clone()))
-            }
+            Self::Var(Var::Param(depth2)) if depth2 == depth => Self::Thunk(thunk.clone()),
             expr @ Self::Var(_) => expr,
+            expr @ Self::Thunk(_) => expr,
             Self::Apply(f, arg) => {
                 Self::apply(f.substitute(depth, thunk), arg.substitute(depth, thunk))
             }
@@ -278,39 +289,39 @@ impl Expr<ThunkVar> {
         }
         Ok(match self {
             expr @ Self::Fn(_, _) => expr,
-            Self::Var(ThunkVar::Thunk(thunk)) => {
+            Self::Thunk(thunk) => {
                 // This is structured this way because the `eval()` can't take place while `thunk`
                 // is borrowed.
                 let to_eval = match &mut *thunk.borrow_mut() {
-                    ThunkData::Evaluated(expr) => return Ok(expr.clone()),
-                    ThunkData::Unevaluated(expr) => expr.take().unwrap(),
+                    Thunk::Evaluated(expr) => return Ok(expr.clone()),
+                    Thunk::Unevaluated(expr) => expr.take().unwrap(),
                 };
                 let expr = to_eval.eval_inner(depth + 1)?;
-                *thunk.borrow_mut() = ThunkData::Evaluated(expr.clone());
+                *thunk.borrow_mut() = Thunk::Evaluated(expr.clone());
                 expr
             }
-            Self::Var(ThunkVar::Param(_)) => unreachable!(),
-            expr @ Self::Var(ThunkVar::Free(_)) => expr,
+            Self::Var(Var::Param(_)) => unreachable!(),
+            expr @ Self::Var(Var::Free(_)) => expr,
             Self::Apply(f, arg) => {
                 let f = f.eval_inner(depth + 1)?;
                 match (f, *arg) {
-                    (Expr::Fn(_, body), arg) => {
-                        let thunk = Rc::new(RefCell::new(ThunkData::Unevaluated(Some(arg))));
+                    (Self::Fn(_, body), arg) => {
+                        let thunk = Rc::new(RefCell::new(Thunk::Unevaluated(Some(arg))));
                         let body = body.substitute(0, &thunk);
                         body.eval_inner(depth + 1)?
                     }
-                    (Expr::Var(ident), body) => {
+                    (Self::Var(ident), arg) => {
                         return Err(anyhow::Error::new(simple_error!(
                             "Can't apply free variable '{}' to argument '{}'",
                             match ident {
-                                ThunkVar::Free(ident) => ident,
-                                ThunkVar::Param(_) => unreachable!(),
-                                ThunkVar::Thunk(_) => unreachable!(),
+                                Var::Free(ident) => ident,
+                                Var::Param(_) => unreachable!(),
                             },
-                            body.thunks_to_indices()?.indices_to_idents()
+                            arg.into_non_lazy()?.indices_to_idents()
                         )))
                     }
-                    (apply @ Expr::Apply(_, _), arg) => {
+                    (Self::Thunk(_), _) => unreachable!(),
+                    (apply @ Self::Apply(_, _), arg) => {
                         Self::apply(apply.eval_inner(depth + 1)?, arg).eval_inner(depth + 1)?
                     }
                 }
@@ -318,31 +329,27 @@ impl Expr<ThunkVar> {
         })
     }
 
-    /// Removes thunks, converting to standard De Bruijn indices.
-    pub fn thunks_to_indices(self) -> anyhow::Result<Expr<Var>> {
-        self.thunks_to_indices_inner(0)
+    /// Removes thunks.
+    pub fn into_non_lazy(self) -> anyhow::Result<Expr<Var>> {
+        self.into_non_lazy_inner(0)
     }
 
-    pub fn thunks_to_indices_inner(self, depth: u16) -> anyhow::Result<Expr<Var>> {
-        if depth >= THUNKS_TO_INDICES_RECURSION_LIMIT {
+    pub fn into_non_lazy_inner(self, depth: u16) -> anyhow::Result<Expr<Var>> {
+        if depth >= INTO_NON_LAZY_RECURSION_LIMIT {
             return Err(anyhow::Error::new(simple_error!(
                 "Recursion limit reached when converting expression to be displayed."
             )));
         }
         Ok(match self {
-            Self::Fn(param, body) => Expr::f(param, body.thunks_to_indices_inner(depth + 1)?),
-            Self::Var(ThunkVar::Free(ident)) => Expr::Var(Var::Free(ident)),
-            Self::Var(ThunkVar::Thunk(thunk)) => match &*thunk.borrow() {
-                ThunkData::Unevaluated(expr) => {
-                    expr.clone().unwrap().thunks_to_indices_inner(depth + 1)?
-                }
-                ThunkData::Evaluated(expr) => expr.clone().thunks_to_indices_inner(depth + 1)?,
+            Self::Fn(param, body) => Expr::f(param, body.into_non_lazy_inner(depth + 1)?),
+            Self::Var(var) => Expr::Var(var),
+            Self::Thunk(thunk) => match &*thunk.borrow() {
+                Thunk::Unevaluated(expr) => expr.clone().unwrap().into_non_lazy_inner(depth + 1)?,
+                Thunk::Evaluated(expr) => expr.clone().into_non_lazy_inner(depth + 1)?,
             },
-            Self::Var(ThunkVar::Param(index)) => Expr::Var(Var::Param(index)),
-            Self::Apply(f, arg) => Expr::apply(
-                f.thunks_to_indices_inner(depth + 1)?,
-                arg.thunks_to_indices_inner(depth + 1)?,
-            ),
+            Self::Apply(f, arg) => {
+                Expr::apply(f.into_non_lazy_inner(depth + 1)?, arg.into_non_lazy_inner(depth + 1)?)
+            }
         })
     }
 }
@@ -356,10 +363,10 @@ mod tests {
         parse_expr(i)
             .unwrap()
             .idents_to_indices()
-            .indices_to_thunks()
+            .into_lazy()
             .eval()
             .ok()
-            .and_then(|expr| expr.thunks_to_indices().ok())
+            .and_then(|expr| expr.into_non_lazy().ok())
     }
 
     // TODO: add more tests

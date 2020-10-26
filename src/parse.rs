@@ -143,7 +143,7 @@ pub mod tests {
             Some(ReplCommand::Expr(run_parser2(parse_apply, "a -> a").unwrap()))
         );
         assert_eq!(
-            run_parser2(parse_statement, "0 = a -> b -> a"),
+            run_parser2(parse_repl_command, "0 = a -> b -> a"),
             Some(ReplCommand::Def("0".to_owned(), run_parser(parse_apply, "a -> b -> a").unwrap()))
         );
     }

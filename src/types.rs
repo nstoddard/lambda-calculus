@@ -16,10 +16,9 @@ pub enum ReplCommand {
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum Expr<Var> {
     Fn(Ident, Box<Expr<Var>>),
-    /// There are three representations of variables: identifiers (`Ident`), which are used when
-    /// parsing and displaying expressions, De Bruijn indices (the `Var` enum), which are mainly
-    /// used as an intermediate representation when converting to/from thunks, and thunks
-    /// (the `ThunkVar` enum), used when evaluating expressions.
+    /// There are two representations of variables: identifiers (`Ident`), which are used when
+    /// parsing and displaying expressions, and De Bruijn indices (the `Var` enum), which are used
+    /// at most other times.
     Var(Var),
     Apply(Box<Expr<Var>>, Box<Expr<Var>>),
 }
@@ -34,27 +33,23 @@ pub enum Var {
     Param(Index),
 }
 
+/// An `Expr` that uses thunks for lazy evaluation, resulting in a large performance increase.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum ThunkVar {
-    /// Free variable, or reference to definition
-    Free(Ident),
-    /// De Bruijn index
-    Param(Index),
-    /// A thunk. This isn't technically a variable, but is stored as a `Var` because otherwise an
-    /// entirely separate `Expr` struct would be required when using thunks.
-    Thunk(Thunk),
+pub enum LazyExpr {
+    Fn(Ident, Box<LazyExpr>),
+    Var(Var),
+    Apply(Box<LazyExpr>, Box<LazyExpr>),
+    Thunk(Rc<RefCell<Thunk>>),
 }
 
 /// Thunks are a way to reduce duplicate work when evaluating expressions; they make the evaluation
 /// of many expressions orders of magnitude faster, at the cost of implementation complexity.
 // TODO: is `Thunk` the best name for this type?
-pub type Thunk = Rc<RefCell<ThunkData>>;
-
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum ThunkData {
+pub enum Thunk {
     /// A thunk containing an expression that hasn't yet been evaluated
     // This is an `Option` to avoid needing to clone it in `eval()`
-    Unevaluated(Option<Expr<ThunkVar>>),
+    Unevaluated(Option<LazyExpr>),
     /// A thunk containing an evaluated expression
-    Evaluated(Expr<ThunkVar>),
+    Evaluated(LazyExpr),
 }
