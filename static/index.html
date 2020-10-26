@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Lambda calculus interpreter</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <script type="text/javascript" src="generated/lambda_calculus_wasm.js"></script>
+
+    <script type="text/javascript">
+      document.addEventListener("DOMContentLoaded", async function(event) {
+        await wasm_bindgen("generated/lambda_calculus_wasm_bg.wasm");
+      });
+    </script>
+  </body>
+</html>
