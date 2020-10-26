@@ -54,28 +54,6 @@ impl Display for Expr<Ident> {
     }
 }
 
-impl Display for Statement<Ident> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            Self::Def(ident, expr) => {
-                write!(f, "{} = ", ident)?;
-                expr.fmt(f)
-            }
-            Self::Expr(expr) => expr.fmt(f),
-            Self::PrintDefs => write!(f, "defs"),
-            Self::PrintHelp => write!(f, "help"),
-            Self::ResetDefs => write!(f, "reset"),
-            Self::Undefine(xs) => {
-                write!(f, "undefine")?;
-                for x in xs {
-                    write!(f, " {}", x)?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
 impl<Var> Expr<Var> {
     /// Shorthand for creating an `Expr::Fn` without needing to call `Box::new`.
     pub fn f(param: Ident, body: Self) -> Self {

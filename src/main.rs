@@ -82,8 +82,8 @@ fn main() {
                     continue;
                 }
                 editor.add_history_entry(&line);
-                match run_parser(parse_statement, &line) {
-                    Ok(Statement::Expr(expr)) => {
+                match run_parser(parse_repl_command, &line) {
+                    Ok(ReplCommand::Expr(expr)) => {
                         let res = expr
                             .idents_to_indices()
                             .substitute_defs(defs.ident_to_def())
@@ -94,12 +94,12 @@ fn main() {
                             Err(err) => println!("{}", err),
                         }
                     }
-                    Ok(Statement::Def(ident, expr)) => {
+                    Ok(ReplCommand::Def(ident, expr)) => {
                         defs.add(ident.clone(), expr);
                         let expr = defs[&ident].clone();
                         print_expr(expr, defs.def_to_ident());
                     }
-                    Ok(Statement::PrintDefs) => {
+                    Ok(ReplCommand::PrintDefs) => {
                         let defs = defs.accessible_defs();
                         if defs.is_empty() {
                             println!("Nothing has been defined yet.");
@@ -109,13 +109,13 @@ fn main() {
                             }
                         }
                     }
-                    Ok(Statement::PrintHelp) => {
+                    Ok(ReplCommand::PrintHelp) => {
                         println!("{}", HELP_STR);
                     }
-                    Ok(Statement::ResetDefs) => {
+                    Ok(ReplCommand::ResetDefs) => {
                         defs.reset();
                     }
-                    Ok(Statement::Undefine(xs)) => {
+                    Ok(ReplCommand::Undefine(xs)) => {
                         for x in xs {
                             if defs.undefine(&x) {
                                 println!("Definition for '{}' removed.", x);

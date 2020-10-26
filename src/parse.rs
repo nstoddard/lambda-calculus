@@ -54,11 +54,11 @@ pub fn parse_def(i: &str) -> IResult<&str, (Ident, Expr<Ident>), VerboseError> {
     pair(ident, preceded(tuple((multispace0, char('='), multispace0)), parse_apply))(i)
 }
 
-pub fn parse_statement(i: &str) -> IResult<&str, Statement<Ident>, VerboseError> {
+pub fn parse_repl_command(i: &str) -> IResult<&str, ReplCommand, VerboseError> {
     alt((
-        map(tag("defs"), |_| Statement::PrintDefs),
-        map(tag("help"), |_| Statement::PrintHelp),
-        map(tag("reset"), |_| Statement::ResetDefs),
+        map(tag("defs"), |_| ReplCommand::PrintDefs),
+        map(tag("help"), |_| ReplCommand::PrintHelp),
+        map(tag("reset"), |_| ReplCommand::ResetDefs),
         map(
             preceded(
                 tag("undefine"),
@@ -67,10 +67,10 @@ pub fn parse_statement(i: &str) -> IResult<&str, Statement<Ident>, VerboseError>
                     xs
                 }),
             ),
-            Statement::Undefine,
+            ReplCommand::Undefine,
         ),
-        map(parse_def, |(ident, expr)| Statement::Def(ident, expr)),
-        map(parse_apply, Statement::Expr),
+        map(parse_def, |(ident, expr)| ReplCommand::Def(ident, expr)),
+        map(parse_apply, ReplCommand::Expr),
     ))(i)
 }
 
@@ -139,12 +139,12 @@ pub mod tests {
         );
 
         assert_eq!(
-            run_parser2(parse_statement, "a -> a"),
-            Some(Statement::Expr(run_parser2(parse_apply, "a -> a").unwrap()))
+            run_parser2(parse_repl_command, "a -> a"),
+            Some(ReplCommand::Expr(run_parser2(parse_apply, "a -> a").unwrap()))
         );
         assert_eq!(
             run_parser2(parse_statement, "0 = a -> b -> a"),
-            Some(Statement::Def("0".to_owned(), run_parser(parse_apply, "a -> b -> a").unwrap()))
+            Some(ReplCommand::Def("0".to_owned(), run_parser(parse_apply, "a -> b -> a").unwrap()))
         );
     }
 }

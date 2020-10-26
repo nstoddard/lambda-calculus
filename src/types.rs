@@ -4,20 +4,22 @@ use std::rc::Rc;
 pub type Index = u16;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Statement<Var> {
-    Def(Ident, Expr<Var>),
-    Expr(Expr<Var>),
-    // TODO: these should be REPL commands, not statements
+pub enum ReplCommand {
+    Def(Ident, Expr<Ident>),
+    Expr(Expr<Ident>),
     PrintDefs,
     PrintHelp,
     ResetDefs,
-    Undefine(Vec<Var>),
+    Undefine(Vec<Ident>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum Expr<Var> {
     Fn(Ident, Box<Expr<Var>>),
-    /// There are three representations of variables: identifiers (`Ident`), which are used when parsing and displaying expressions, De Bruijn indices (the `Var` enum), which are mainly used as an intermediate representation when converting to/from thunks, and thunks (the `ThunkVar` enum), used when evaluating expressions.
+    /// There are three representations of variables: identifiers (`Ident`), which are used when
+    /// parsing and displaying expressions, De Bruijn indices (the `Var` enum), which are mainly
+    /// used as an intermediate representation when converting to/from thunks, and thunks
+    /// (the `ThunkVar` enum), used when evaluating expressions.
     Var(Var),
     Apply(Box<Expr<Var>>, Box<Expr<Var>>),
 }
@@ -38,7 +40,8 @@ pub enum ThunkVar {
     Free(Ident),
     /// De Bruijn index
     Param(Index),
-    /// A thunk. This isn't technically a variable, but is stored as a `Var` because otherwise an entirely separate `Expr` struct would be required when using thunks.
+    /// A thunk. This isn't technically a variable, but is stored as a `Var` because otherwise an
+    /// entirely separate `Expr` struct would be required when using thunks.
     Thunk(Thunk),
 }
 

@@ -1,8 +1,18 @@
 use std::collections::*;
+use std::fmt::{self, Display, Formatter};
 use std::io::Write;
 
 use crate::parse::*;
 use crate::types::*;
+
+pub struct Def(Ident, Expr<Ident>);
+
+impl Display for Def {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{} = ", self.0)?;
+        self.1.fmt(f)
+    }
+}
 
 pub struct Defs {
     ordered_defs: Vec<(Ident, Expr<Ident>)>,
@@ -122,8 +132,8 @@ impl Defs {
         }
     }
 
-    /// Removes definitions that can no longer be accessed, and converts the results to `Statement`s.
-    pub fn accessible_defs(&self) -> Vec<Statement<Ident>> {
+    /// Removes definitions that can no longer be accessed, and converts the results to `Def`s.
+    pub fn accessible_defs(&self) -> Vec<Def> {
         let mut defined_idents = HashSet::new();
         let mut res: Vec<_> = self
             .ordered_defs
@@ -134,7 +144,7 @@ impl Defs {
                 defined_idents.insert(ident.clone());
                 !already_defined
             })
-            .map(|(ident, expr)| Statement::Def(ident.clone(), expr.clone()))
+            .map(|(ident, expr)| Def(ident.clone(), expr.clone()))
             .collect();
         res.reverse();
         res

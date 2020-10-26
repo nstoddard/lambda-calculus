@@ -23,6 +23,50 @@ use types::*;
 const EXPR_TRUNCATE_LEN: usize = 200;
 const MAX_HISTORY_LEN: usize = 500;
 
+fn help_html() -> Html {
+    html! {
+        <div class="box info">
+        // These multiline string literals have to be aligned to the left or each line
+        // ends up with extra spaces at the start.
+        // TODO: find a better way to do this
+        {"Lambda Calculus interpreter, by Nathan Stoddard
+    
+Lambda Calculus is a simple model of computation, with the only data type being functions that take one argument and return one result. Despite its simplicity, it's Turing-complete. For more information about it, see the "}
+        <a href="https://en.wikipedia.org/wiki/Lambda_calculus">{"Wikipedia page"}</a>
+        {", the "}
+        <a href="https://en.wikibooks.org/wiki/Programming_Languages/Semantics_Specification#The_Built-in_Operations_of_Lambda_Calculus">
+            {"Wikibooks page"}
+        </a>
+        {", or many other sources.
+
+This is a small project to experiment with lambda calculus. It's not intended to be useful in production or be feature-complete. It also has a slightly different syntax than standard lambda calculus ('"}
+        <span class="monospace">{"a -> a"}</span>
+        {"' rather than '"}
+        <span class="monospace">{"λa. a"}</span>
+        {"') because I don't like the standard alternatives to the lambda character.
+
+Syntax:
+Functions: "} <span class="monospace">{ "a -> a" }</span>
+        {"\n    Function application: "} <span class="monospace">{"(a -> b -> a) x y"}</span>
+        {"\n    Definitions: "} <span class="monospace">{"id = a -> a"}</span>
+        {"
+
+Names can either be alphanumeric (and unlike in most languages, can start with a digit), or contain only symbols (most ASCII characters are allowed).
+Definitions are substituted into expressions before evaluation, so they can't be used for recursion.
+The output of evaluating an expression is typically displayed twice: a minimal form in terms of definitions where possible, followed by the full expression (if different).
+
+Commands:
+    help: display this help info
+    reset: remove all definitions
+    undefine foo: remove the definition for 'foo'
+
+This was tested in Firefox and Chrome, on Linux. It should also work on other operating systems, and may or may not work in other browsers. If there's any problems, please file an issue at " }
+        <a href="https://github.com/nstoddard/lambda-calculus/">{"the GitHub repository"}</a>
+        {"."}
+        </div>
+    }
+}
+
 #[derive(Debug)]
 enum Msg {
     ModifyCurStatement(String),
@@ -119,6 +163,46 @@ impl EvalResult {
                 min: None,
                 full: DisplayedExpr::new(format!("{}", expr.indices_to_idents())),
             }
+        }
+    }
+
+    fn to_html(&self, i: usize, link: &ComponentLink<LambdaCalculus>) -> Html {
+        match self {
+            EvalResult::Err { input: Some(input), err } => html! {
+                <div class="row">
+                    <div class="monospace box input">{input}</div>
+                    <div class="monospace">{"→"}</div>
+                    <div class="monospace error box">{err}</div>
+                </div>
+            },
+            EvalResult::Err { input: None, err } => html! {
+                <div class="monospace error box">{err}</div>
+            },
+            EvalResult::Info(info) => html! {
+                <div class="box info">{info}</div>
+            },
+            EvalResult::Help => help_html(),
+            EvalResult::Expr { min, full, input } => html! {
+                <div class="row">
+                    <div class="monospace box input">{input}</div>
+                    <div class="monospace large">{"→"}</div>
+                    { match min {
+                        None => html! {
+                            <div class="monospace box row2">{full.to_html(i, false, false, link)}</div>
+                        },
+                        Some(min) => html! {
+                            <div class="box">
+                                <div class="monospace row2">{
+                                    min.to_html(i, true, false, link)
+                                }</div>
+                                <div class="monospace dim row2">{
+                                    full.to_html(i, false, true, link)
+                                }</div>
+                            </div>
+                        }
+                    } }
+                </div>
+            },
         }
     }
 }
@@ -292,8 +376,8 @@ impl Component for LambdaCalculus {
                         }
                     }
                 }
-                match run_parser(parse_statement, &input) {
-                    Ok(Statement::Expr(expr)) => {
+                match run_parser(parse_repl_command, &input) {
+                    Ok(ReplCommand::Expr(expr)) => {
                         let res = expr
                             .idents_to_indices()
                             .substitute_defs(self.persistent_data.borrow().defs.ident_to_def())
@@ -310,7 +394,7 @@ impl Component for LambdaCalculus {
                             }
                         })
                     }
-                    Ok(Statement::Def(ident, expr)) => {
+                    Ok(ReplCommand::Def(ident, expr)) => {
                         self.scroll_defs = true;
                         let mut persistent_data = self.persistent_data.borrow_mut();
                         let defs = &mut persistent_data.defs;
@@ -319,7 +403,7 @@ impl Component for LambdaCalculus {
                         let displayed_expr = EvalResult::new(input, expr, defs.def_to_ident());
                         self.eval_results.push(displayed_expr);
                     }
-                    Ok(Statement::PrintDefs) => {
+                    Ok(ReplCommand::PrintDefs) => {
                         self.eval_results.push(EvalResult::Err {
                             input: Some(input),
                             err:
@@ -327,13 +411,13 @@ impl Component for LambdaCalculus {
                                     .to_owned(),
                         });
                     }
-                    Ok(Statement::PrintHelp) => {
+                    Ok(ReplCommand::PrintHelp) => {
                         self.eval_results.push(EvalResult::Help);
                     }
-                    Ok(Statement::ResetDefs) => {
+                    Ok(ReplCommand::ResetDefs) => {
                         self.persistent_data.borrow_mut().defs.reset();
                     }
-                    Ok(Statement::Undefine(xs)) => {
+                    Ok(ReplCommand::Undefine(xs)) => {
                         let mut persistent_data = self.persistent_data.borrow_mut();
                         for x in xs {
                             if persistent_data.defs.undefine(&x) {
@@ -380,91 +464,9 @@ impl Component for LambdaCalculus {
                     }).collect::<Html>() }
                 </div>
                 <div id="replColumn">
-                    { self.eval_results.iter().enumerate().map(|(i, displayed_expr)| match displayed_expr {
-                        EvalResult::Err{input: Some(input), err} => html! {
-                            <div class="row">
-                                <div class="monospace box input">{input}</div>
-                                <div class="monospace">{"→"}</div>
-                                <div class="monospace error box">{err}</div>
-                            </div>
-                        },
-                        EvalResult::Err{input: None, err} => html! {
-                            <div class="monospace error box">{err}</div>
-                        },
-                        EvalResult::Info(info) => html! {
-                            <div class="box info">{info}</div>
-                        },
-                        EvalResult::Help => html! {
-                            <div class="box info">
-                // These multiline string literals have to be aligned to the left or each line
-                // ends up with extra spaces at the start.
-                // TODO: find a better way to do this
-                {"Lambda Calculus interpreter, by Nathan Stoddard
-
-Lambda Calculus is a simple model of computation, with the only data type being functions that take one argument and return one result. Despite its simplicity, it's Turing-complete. For more information about it, see the "}
-                <a href="https://en.wikipedia.org/wiki/Lambda_calculus">
-                    {"Wikipedia page"}
-                </a>
-                {", the "}
-                <a href="https://en.wikibooks.org/wiki/Programming_Languages/Semantics_Specification#The_Built-in_Operations_of_Lambda_Calculus">
-                    {"Wikibooks page"}
-                </a>
-                {", or many other sources.
-
-This is a small project to experiment with lambda calculus. It's not intended to be useful in production or be feature-complete. It also has a slightly different syntax than standard lambda calculus ('"}
-        <span class="monospace">{"a -> a"}</span>
-        {"' rather than '"}
-        <span class="monospace">{"λa. a"}</span>
-        {"') because I don't like the standard alternatives to the lambda character.
-
-Syntax:
-    Functions: "} <span class="monospace">{
-                    "a -> a"
-                }</span>
-                {"\n    Function application: "} <span class="monospace">{
-                    "(a -> b -> a) x y"
-                }</span>
-                {"\n    Definitions: "} <span class="monospace">{
-                    "id = a -> a"
-                }</span>
-                {"
-
-Names can either be alphanumeric (and unlike in most languages, can start with a digit), or contain only symbols (most ASCII characters are allowed).
-Definitions are substituted into expressions before evaluation, so they can't be used for recursion.
-The output of evaluating an expression is typically displayed twice: a minimal form in terms of definitions where possible, followed by the full expression (if different).
-
-Commands:
-    help: display this help info
-    reset: remove all definitions
-    undefine foo: remove the definition for 'foo'
-
-This was tested in Firefox and Chrome, on Linux. It should also work on other operating systems, and may or may not work in other browsers. If there's any problems, please file an issue at " }
-                            <a href="https://github.com/nstoddard/lambda-calculus/">{"The GitHub repository"}</a>
-                            {"."}
-                            </div>
-                        },
-                        EvalResult::Expr{min, full, input} => html! {
-                            <div class="row">
-                                <div class="monospace box input">{input}</div>
-                                <div class="monospace large">{"→"}</div>
-                                { match min {
-                                    None => html! {
-                                        <div class="monospace box row2">{full.to_html(i, false, false, &self.link)}</div>
-                                    },
-                                    Some(min) => html! {
-                                        <div class="box">
-                                            <div class="monospace row2">{
-                                                min.to_html(i, true, false, &self.link)
-                                            }</div>
-                                            <div class="monospace dim row2">{
-                                                full.to_html(i, false, true, &self.link)
-                                            }</div>
-                                        </div>
-                                    }
-                                } }
-                            </div>
-                        },
-                    }).collect::<Html>() }
+                    { self.eval_results.iter().enumerate()
+                        .map(|(i, eval_result)| eval_result.to_html(i, &self.link))
+                        .collect::<Html>() }
                     <div class="row">
                         <input id="statementInput" placeholder="(a -> b -> a) x y" class="monospace"
                             type="text" autofocus=true value=self.cur_statement
