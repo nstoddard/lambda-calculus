@@ -29,7 +29,8 @@ fn ident(i: &str) -> IResult<&str, Ident, VerboseError> {
     verify(alt((ident1, ident2)), |ident| !KEYWORDS.contains(&ident))(i)
 }
 
-/// Attempts to parse the input as a function, aside from the argument
+/// Attempts to parse the input as a function (except the parameter name, which is assumed to
+/// have already been parsed)
 fn try_parse_fn(i: &str) -> IResult<&str, Option<Expr<Ident>>, VerboseError> {
     opt(preceded(tuple((multispace0, tag("->"), multispace0)), parse_apply))(i)
 }
@@ -143,8 +144,15 @@ pub mod tests {
             Some(ReplCommand::Expr(run_parser2(parse_apply, "a -> a").unwrap()))
         );
         assert_eq!(
-            run_parser2(parse_repl_command, "0 = a -> b -> a"),
-            Some(ReplCommand::Def("0".to_owned(), run_parser(parse_apply, "a -> b -> a").unwrap()))
+            run_parser2(parse_repl_command, ". = f -> g -> x -> f (g x)"),
+            Some(ReplCommand::Def(
+                ".".to_owned(),
+                run_parser(parse_apply, "f -> g -> x -> f (g x)").unwrap()
+            ))
+        );
+        assert_eq!(
+            run_parser2(parse_repl_command, "undefine foo bar"),
+            Some(ReplCommand::Undefine(vec!["foo".to_owned(), "bar".to_owned()]))
         );
     }
 }

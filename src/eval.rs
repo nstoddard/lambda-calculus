@@ -26,8 +26,7 @@ impl Display for Expr<Ident> {
         match self {
             Self::Fn(ident, body) => {
                 write!(f, "{} -> ", ident)?;
-                body.fmt(f)?;
-                Ok(())
+                body.fmt(f)
             }
             Self::Var(var) => write!(f, "{}", var),
             Self::Apply(function, arg) => {
@@ -67,12 +66,12 @@ impl<Var> Expr<Var> {
 }
 
 impl LazyExpr {
-    /// Shorthand for creating an `Expr::Fn` without needing to call `Box::new`.
+    /// Shorthand for creating a `LazyExpr::Fn` without needing to call `Box::new`.
     pub fn f(param: Ident, body: Self) -> Self {
         Self::Fn(param, Box::new(body))
     }
 
-    /// Shorthand for creating an `Expr::Apply` without needing to call `Box::new`.
+    /// Shorthand for creating a `LazyExpr::Apply` without needing to call `Box::new`.
     pub fn apply(f: Self, arg: Self) -> Self {
         Self::Apply(Box::new(f), Box::new(arg))
     }
@@ -290,42 +289,39 @@ impl LazyExpr {
         Ok(match self {
             expr @ Self::Fn(_, _) => expr,
             Self::Thunk(thunk) => {
-                // This is structured this way because the `eval()` can't take place while `thunk`
-                // is borrowed.
-                let to_eval = match &mut *thunk.borrow_mut() {
-                    Thunk::Evaluated(expr) => return Ok(expr.clone()),
-                    Thunk::Unevaluated(expr) => expr.take().unwrap(),
-                };
-                let expr = to_eval.eval_inner(depth + 1)?;
-                *thunk.borrow_mut() = Thunk::Evaluated(expr.clone());
-                expr
-            }
-            Self::Var(Var::Param(_)) => unreachable!(),
-            expr @ Self::Var(Var::Free(_)) => expr,
-            Self::Apply(f, arg) => {
-                let f = f.eval_inner(depth + 1)?;
-                match (f, *arg) {
-                    (Self::Fn(_, body), arg) => {
-                        let thunk = Rc::new(RefCell::new(Thunk::Unevaluated(Some(arg))));
-                        let body = body.substitute(0, &thunk);
-                        body.eval_inner(depth + 1)?
-                    }
-                    (Self::Var(ident), arg) => {
-                        return Err(anyhow::Error::new(simple_error!(
-                            "Can't apply free variable '{}' to argument '{}'",
-                            match ident {
-                                Var::Free(ident) => ident,
-                                Var::Param(_) => unreachable!(),
-                            },
-                            arg.into_non_lazy()?.indices_to_idents()
-                        )))
-                    }
-                    (Self::Thunk(_), _) => unreachable!(),
-                    (apply @ Self::Apply(_, _), arg) => {
-                        Self::apply(apply.eval_inner(depth + 1)?, arg).eval_inner(depth + 1)?
+                // This `borrow_mut()` is fine despite the recursive call to `eval_inner()` because
+                // no thunk can contain itself, so it can't try to borrow this thunk twice.
+                let thunk = &mut *thunk.borrow_mut();
+                match thunk {
+                    Thunk::Evaluated(expr) => expr.clone(),
+                    Thunk::Unevaluated(expr) => {
+                        let new_expr = expr.take().unwrap().eval_inner(depth+1)?;
+                        *thunk = Thunk::Evaluated(new_expr.clone());
+                        new_expr
                     }
                 }
             }
+            Self::Var(Var::Param(_)) => unreachable!(),
+            expr @ Self::Var(Var::Free(_)) => expr,
+            Self::Apply(f, arg) => match f.eval_inner(depth + 1)? {
+                Self::Fn(_, body) => {
+                    let thunk = Rc::new(RefCell::new(Thunk::Unevaluated(Some(*arg))));
+                    let body = body.substitute(0, &thunk);
+                    body.eval_inner(depth + 1)?
+                }
+                Self::Var(Var::Param(_)) => unreachable!(),
+                Self::Var(Var::Free(ident)) => {
+                    return Err(anyhow::Error::new(simple_error!(
+                        "Can't apply free variable '{}' to argument '{}'",
+                        ident,
+                        arg.into_non_lazy()?.indices_to_idents()
+                    )))
+                }
+                Self::Thunk(_) => unreachable!(),
+                apply @ Self::Apply(_, _) => {
+                    Self::apply(apply.eval_inner(depth + 1)?, *arg).eval_inner(depth + 1)?
+                }
+            },
         })
     }
 
@@ -334,7 +330,7 @@ impl LazyExpr {
         self.into_non_lazy_inner(0)
     }
 
-    pub fn into_non_lazy_inner(self, depth: u16) -> anyhow::Result<Expr<Var>> {
+    fn into_non_lazy_inner(self, depth: u16) -> anyhow::Result<Expr<Var>> {
         if depth >= INTO_NON_LAZY_RECURSION_LIMIT {
             return Err(anyhow::Error::new(simple_error!(
                 "Recursion limit reached when converting expression to be displayed."
