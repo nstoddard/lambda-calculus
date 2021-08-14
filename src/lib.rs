@@ -437,7 +437,7 @@ impl Component for LambdaCalculus {
                         input: Some(input.clone()),
                         err: format!(
                             "Syntax error: {}",
-                            nom::error::convert_error(&input, get_nom_error(err))
+                            nom::error::convert_error(input.as_ref(), get_nom_error(err))
                         ),
                     }),
                 }
@@ -469,7 +469,7 @@ impl Component for LambdaCalculus {
                         .collect::<Html>() }
                     <div class="row">
                         <input id="statementInput" placeholder="(a -> b -> a) x y" class="monospace"
-                            type="text" autofocus=true value=self.cur_statement
+                            type="text" autofocus=true value=self.cur_statement.clone()
                             oninput=self.link.callback(|input: InputData| Msg::ModifyCurStatement(input.value))
                             onkeydown=self.link.callback(|key| Msg::KeyDown(key)) />
                         <button onclick=self.link.callback(|_| Msg::ShowHelp)>{"Help"}</button>

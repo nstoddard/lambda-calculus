@@ -6,7 +6,7 @@ mod parse;
 mod types;
 
 use directories_next::*;
-use rustyline::{error::*, At, Cmd, Editor, KeyPress, Movement, Word};
+use rustyline::{error::*, Editor};
 use std::collections::*;
 use std::fs::{self, File};
 use std::io::BufWriter;
@@ -57,11 +57,6 @@ fn main() {
     let defs_file = save_dir.join(DEFS_FILENAME);
 
     let mut editor = Editor::<()>::new();
-    editor.bind_sequence(KeyPress::ControlLeft, Cmd::Move(Movement::BackwardWord(1, Word::Big)));
-    editor.bind_sequence(
-        KeyPress::ControlRight,
-        Cmd::Move(Movement::ForwardWord(1, At::AfterEnd, Word::Big)),
-    );
     if history_file.exists() {
         editor.load_history(&history_file).unwrap();
     }
@@ -126,7 +121,7 @@ fn main() {
                     }
                     Err(err) => println!(
                         "Syntax error: {}",
-                        nom::error::convert_error(&line, get_nom_error(err))
+                        nom::error::convert_error(line.as_ref(), get_nom_error(err))
                     ),
                 }
             }
