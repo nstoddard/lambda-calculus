@@ -110,9 +110,9 @@ impl DisplayedExpr {
             ExpandedState::AlwaysExpanded => html! { &self.expr },
             _ => {
                 let mut classes = if self.expanded_state == ExpandedState::Expanded {
-                    "expandButton2"
+                    "expandButton expandButtonExpanded"
                 } else {
-                    "expandButton"
+                    "expandButton expandButtonNotExpanded"
                 }
                 .to_owned();
                 if second_displayed_expr {
@@ -171,7 +171,7 @@ impl EvalResult {
             EvalResult::Err { input: Some(input), err } => html! {
                 <div class="row">
                     <div class="monospace box input">{input}</div>
-                    <div class="monospace">{"→"}</div>
+                    <div class="monospace large">{"→"}</div>
                     <div class="monospace error box">{err}</div>
                 </div>
             },
@@ -179,7 +179,7 @@ impl EvalResult {
                 <div class="monospace error box">{err}</div>
             },
             EvalResult::Info(info) => html! {
-                <div class="box info">{info}</div>
+                <div class="box info shrinkBorder">{info}</div>
             },
             EvalResult::Help => help_html(),
             EvalResult::Expr { min, full, input } => html! {
@@ -462,7 +462,7 @@ impl Component for LambdaCalculus {
             <>
                 <div id="defsColumn">
                     { self.persistent_data.borrow().defs.accessible_defs().iter().map(|def| html! {
-                        <div class="monospace box def">{def}</div>
+                        <div class="monospace box shrinkBorder">{def}</div>
                     }).collect::<Html>() }
                 </div>
                 <div id="replColumn">
