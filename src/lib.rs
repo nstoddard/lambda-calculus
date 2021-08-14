@@ -218,7 +218,7 @@ impl PersistentData {
         if self.defs.modified() {
             let mut defs_storage = Vec::new();
             self.defs.save(&mut defs_storage);
-            storage.store("defs", Ok(String::from_utf8(defs_storage).unwrap()));
+            storage.store("defs2", Ok(String::from_utf8(defs_storage).unwrap()));
         }
         if self.history_modified {
             storage.store("history", Ok(self.history.join("\n")));
@@ -248,8 +248,10 @@ impl Component for LambdaCalculus {
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let mut storage = StorageService::new(Area::Local).unwrap();
 
-        let defs = if let Ok(input) = storage.restore("defs") {
+        let defs = if let Ok(input) = storage.restore("defs2") {
             Defs::from_str(&input)
+        } else if let Ok(input) = storage.restore("defs") {
+            Defs::from_old_defs(&input)
         } else {
             Defs::default()
         };

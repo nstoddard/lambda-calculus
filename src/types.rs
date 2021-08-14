@@ -1,3 +1,4 @@
+use serde::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -13,7 +14,7 @@ pub enum ReplCommand {
     Undefine(Vec<Ident>),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
 pub enum Expr<Var> {
     Fn(Ident, Box<Expr<Var>>),
     /// There are two representations of variables: identifiers (`Ident`), which are used when

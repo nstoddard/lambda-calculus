@@ -1,3 +1,4 @@
+use serde::*;
 use std::collections::*;
 use std::fmt::{self, Display, Formatter};
 use std::io::Write;
@@ -5,17 +6,21 @@ use std::io::Write;
 use crate::parse::*;
 use crate::types::*;
 
-pub struct Def(Ident, Expr<Ident>);
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Def {
+    ident: Ident,
+    val: Expr<Ident>,
+}
 
 impl Display for Def {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{} = ", self.0)?;
-        self.1.fmt(f)
+        write!(f, "{} = ", self.ident)?;
+        self.val.fmt(f)
     }
 }
 
 pub struct Defs {
-    ordered_defs: Vec<(Ident, Expr<Ident>)>,
+    ordered_defs: Vec<Def>,
     ident_to_def: HashMap<Ident, Expr<Var>>,
     // Multiple idents can have the same definition, so this needs to map to a set.
     def_to_ident: HashMap<Expr<Var>, HashSet<Ident>>,
@@ -23,7 +28,7 @@ pub struct Defs {
     is_default: bool,
 }
 
-const DEFAULT_DEFS: &str = "id = a -> a\n. = f -> g -> x -> f (g x)";
+const DEFAULT_DEFS: &str = include_str!("../default_defs.txt");
 
 impl Default for Defs {
     fn default() -> Self {
@@ -44,25 +49,55 @@ fn insert_def_to_ident(
 
 impl Defs {
     pub fn from_str(input: &str) -> Self {
-        let ordered_defs: Vec<_> =
-            input.lines().map(|line| run_parser(parse_def, line).unwrap()).collect();
+        let ordered_defs: Vec<Def> = serde_json::from_str(input).unwrap();
+        Self::from_ordered_defs(ordered_defs, false, input.trim() == DEFAULT_DEFS)
+    }
+
+    pub fn from_old_defs(input: &str) -> Self {
+        let ordered_defs: Vec<_> = input
+            .lines()
+            .map(|line| {
+                let (ident, val) = run_parser(parse_def, line).unwrap();
+                Def { ident, val }
+            })
+            .collect();
+        Self::from_ordered_defs(ordered_defs, true, true)
+    }
+
+    fn from_ordered_defs(ordered_defs: Vec<Def>, modified: bool, is_default: bool) -> Self {
         let ident_to_def: HashMap<_, _> = ordered_defs
             .iter()
             .cloned()
-            .map(|(ident, expr)| (ident, expr.idents_to_indices()))
+            .map(|def| (def.ident, def.val.idents_to_indices()))
             .collect();
         let mut def_to_ident = HashMap::new();
         for (ident, expr) in &ident_to_def {
             insert_def_to_ident(&mut def_to_ident, expr.clone(), ident.clone());
         }
-        // ident_to_def.iter().map(|(ident, expr)| (expr.clone(), ident.clone())).collect();
-        Self {
-            ordered_defs,
-            ident_to_def,
-            def_to_ident,
-            modified: false,
-            is_default: input.trim() == DEFAULT_DEFS,
-        }
+        Self { ordered_defs, ident_to_def, def_to_ident, modified, is_default }
+    }
+
+    pub fn save(&self, writer: &mut impl Write) {
+        let defs = self.accessible_defs();
+        serde_json::to_writer(writer, &defs).unwrap();
+    }
+
+    /// Removes definitions that can no longer be accessed, and converts the results to `Def`s.
+    pub fn accessible_defs(&self) -> Vec<Def> {
+        let mut defined_idents = HashSet::new();
+        let mut res: Vec<_> = self
+            .ordered_defs
+            .iter()
+            .rev()
+            .filter(|def| {
+                let already_defined = defined_idents.contains(&def.ident);
+                defined_idents.insert(def.ident.clone());
+                !already_defined
+            })
+            .cloned()
+            .collect();
+        res.reverse();
+        res
     }
 
     pub fn is_empty(&self) -> bool {
@@ -74,7 +109,7 @@ impl Defs {
     }
 
     pub fn add(&mut self, ident: String, expr: Expr<Ident>) {
-        self.ordered_defs.push((ident.clone(), expr.clone()));
+        self.ordered_defs.push(Def { ident: ident.clone(), val: expr.clone() });
         let expr = expr.idents_to_indices();
 
         // This handles the case where you have two identifiers that are defined as the same expression.
@@ -99,7 +134,7 @@ impl Defs {
             if idents.is_empty() {
                 self.def_to_ident.remove(&old_def);
             }
-            self.ordered_defs.retain(|(ident2, _)| ident2 != ident);
+            self.ordered_defs.retain(|def| def.ident != ident);
             self.modified = true;
             self.is_default = false;
             true
@@ -123,31 +158,6 @@ impl Defs {
     pub fn reset(&mut self) {
         *self = Defs::default();
         self.modified = true;
-    }
-
-    pub fn save(&self, writer: &mut impl Write) {
-        let defs = self.accessible_defs();
-        for def in defs {
-            writeln!(writer, "{}", def).unwrap();
-        }
-    }
-
-    /// Removes definitions that can no longer be accessed, and converts the results to `Def`s.
-    pub fn accessible_defs(&self) -> Vec<Def> {
-        let mut defined_idents = HashSet::new();
-        let mut res: Vec<_> = self
-            .ordered_defs
-            .iter()
-            .rev()
-            .filter(|(ident, _)| {
-                let already_defined = defined_idents.contains(ident);
-                defined_idents.insert(ident.clone());
-                !already_defined
-            })
-            .map(|(ident, expr)| Def(ident.clone(), expr.clone()))
-            .collect();
-        res.reverse();
-        res
     }
 }
 

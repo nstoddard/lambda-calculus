@@ -16,7 +16,8 @@ use parse::*;
 use types::*;
 
 const HISTORY_FILENAME: &str = "history.txt";
-const DEFS_FILENAME: &str = "defs.txt";
+const DEFS_FILENAME: &str = "defs2.txt";
+const OLD_DEFS_FILENAME: &str = "defs.txt";
 
 const HELP_STR: &str = "Lambda Calculus interpreter, by Nathan Stoddard
 
@@ -55,6 +56,7 @@ fn main() {
     fs::create_dir_all(save_dir).unwrap();
     let history_file = save_dir.join(HISTORY_FILENAME);
     let defs_file = save_dir.join(DEFS_FILENAME);
+    let old_defs_file = save_dir.join(OLD_DEFS_FILENAME);
 
     let mut editor = Editor::<()>::new();
     if history_file.exists() {
@@ -62,6 +64,8 @@ fn main() {
     }
     let mut defs = if defs_file.exists() {
         Defs::from_str(&fs::read_to_string(&defs_file).unwrap())
+    } else if old_defs_file.exists() {
+        Defs::from_old_defs(&fs::read_to_string(&old_defs_file).unwrap())
     } else {
         Defs::default()
     };

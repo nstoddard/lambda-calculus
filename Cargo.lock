@@ -308,6 +308,8 @@ dependencies = [
  "hashbag",
  "nom",
  "rustyline",
+ "serde",
+ "serde_json",
  "simple-error",
  "wasm-bindgen",
  "web-sys",
