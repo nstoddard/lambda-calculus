@@ -4,42 +4,55 @@ mod defs;
 mod eval;
 mod parse;
 mod types;
+mod help;
 
 use directories_next::*;
 use rustyline::{error::*, Editor};
 use std::collections::*;
 use std::fs::{self, File};
 use std::io::BufWriter;
+use yew::*;
+use yew::virtual_dom::*;
 
 use defs::*;
 use parse::*;
 use types::*;
+use help::*;
 
 const HISTORY_FILENAME: &str = "history.txt";
 const DEFS_FILENAME: &str = "defs2.txt";
 const OLD_DEFS_FILENAME: &str = "defs.txt";
 
-const HELP_STR: &str = "Lambda Calculus interpreter, by Nathan Stoddard
+/// Converts a Yew HTML value to a string, including only its text content but without any
+/// additional formatting, except that link URLs are placed in parentheses after the link label.
+fn html_to_text(x: Html) -> String {
+    let mut res = String::new();
+    html_to_text_inner(x, &mut res);
+    res
+}
 
-Lambda Calculus is a simple model of computation, with the only data type being functions that take one argument and return one result. Despite its simplicity, it's Turing-complete. For more information about it, see the Wikipedia page (https://en.wikipedia.org/wiki/Lambda_calculus), the Wikibooks page (https://en.wikibooks.org/wiki/Programming_Languages/Semantics_Specification#The_Built-in_Operations_of_Lambda_Calculus), or many other sources.
+fn html_to_text_inner(x: VNode, res: &mut String) {
+    match x {
+        VNode::VTag(tag) => {
+            html_list_to_text(tag.children, res);
+            for (attr, val) in tag.attributes.iter() {
+                if attr == "href" {
+                    res.push_str(&format!(" ({})", val));
+                }
+            }
+        }
+        VNode::VText(text) => res.push_str(&text.text),
+        VNode::VComp(_) => (), // TODO
+        VNode::VList(list) => html_list_to_text(list, res),
+        VNode::VRef(_) => (), // TODO
+    }
+}
 
-This is a small project to experiment with lambda calculus. It's not intended to be useful in production or be feature-complete. It also has a slightly different syntax than standard lambda calculus ('a -> a' rather than 'λa. a') because I don't like the standard alternatives to the lambda character.
-
-Syntax:
-    Functions: 'a -> a'
-    Function application: '(a -> b -> a) x y'
-    Definitions: 'id = a -> a'
-    
-    Names can either be alphanumeric (and unlike in most languages, can start with a digit), or contain only symbols (most ASCII characters are allowed).
-    Definitions are substituted into expressions before evaluation, so they can't be used for recursion.
-    The output of evaluating an expression is typically displayed twice: a minimal form in terms of definitions where possible, followed by the full expression (if different).
-
-Commands:
-    help: display this help info
-    defs: display everything that has been defined
-    reset: remove all definitions
-    undefine foo: remove the definition for 'foo'
-";
+fn html_list_to_text(list: VList, res: &mut String) {
+    for node in list.children {
+        html_to_text_inner(node, res);
+    }
+}
 
 fn print_expr(expr: Expr<Var>, defs_lookup: &HashMap<Expr<Var>, HashSet<Ident>>) {
     let min_expr = expr.clone().find_minimal_form(defs_lookup);
@@ -48,6 +61,10 @@ fn print_expr(expr: Expr<Var>, defs_lookup: &HashMap<Expr<Var>, HashSet<Ident>>)
     } else {
         println!("{}", expr.indices_to_idents());
     }
+}
+
+fn print_help() {
+    println!("{}", html_to_text(help_html()));
 }
 
 fn main() {
@@ -71,7 +88,7 @@ fn main() {
     };
 
     if defs.is_default() || defs.is_empty() {
-        println!("{}", HELP_STR);
+        print_help();
     }
 
     loop {
@@ -109,7 +126,7 @@ fn main() {
                         }
                     }
                     Ok(ReplCommand::PrintHelp) => {
-                        println!("{}", HELP_STR);
+                        print_help();
                     }
                     Ok(ReplCommand::ResetDefs) => {
                         defs.reset();
