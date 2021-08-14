@@ -150,7 +150,7 @@ impl EvalResult {
         expr: Expr<Var>,
         defs_lookup: &HashMap<Expr<Var>, HashSet<Ident>>,
     ) -> Self {
-        let min_expr = expr.clone().find_minimal_form(&defs_lookup);
+        let min_expr = expr.clone().find_minimal_form(defs_lookup);
         if min_expr != expr {
             EvalResult::Expr {
                 input,
@@ -471,7 +471,7 @@ impl Component for LambdaCalculus {
                         <input id="statementInput" placeholder="(a -> b -> a) x y" class="monospace"
                             type="text" autofocus=true value=self.cur_statement.clone()
                             oninput=self.link.callback(|input: InputData| Msg::ModifyCurStatement(input.value))
-                            onkeydown=self.link.callback(|key| Msg::KeyDown(key)) />
+                            onkeydown=self.link.callback(Msg::KeyDown) />
                         <button onclick=self.link.callback(|_| Msg::ShowHelp)>{"Help"}</button>
                     </div>
                 </div>

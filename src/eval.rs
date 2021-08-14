@@ -295,7 +295,7 @@ impl LazyExpr {
                 match thunk {
                     Thunk::Evaluated(expr) => expr.clone(),
                     Thunk::Unevaluated(expr) => {
-                        let new_expr = expr.take().unwrap().eval_inner(depth+1)?;
+                        let new_expr = expr.take().unwrap().eval_inner(depth + 1)?;
                         *thunk = Thunk::Evaluated(new_expr.clone());
                         new_expr
                     }

@@ -41,7 +41,7 @@ Commands:
 ";
 
 fn print_expr(expr: Expr<Var>, defs_lookup: &HashMap<Expr<Var>, HashSet<Ident>>) {
-    let min_expr = expr.clone().find_minimal_form(&defs_lookup);
+    let min_expr = expr.clone().find_minimal_form(defs_lookup);
     if min_expr != expr {
         println!("{}\t\t({})", min_expr.indices_to_idents(), expr.indices_to_idents());
     } else {

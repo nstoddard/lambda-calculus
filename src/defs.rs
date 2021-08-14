@@ -79,10 +79,10 @@ impl Defs {
 
         // This handles the case where you have two identifiers that are defined as the same expression.
         if let Some(old_def) = self.ident_to_def.get(&ident) {
-            let idents = self.def_to_ident.get_mut(&old_def).unwrap();
+            let idents = self.def_to_ident.get_mut(old_def).unwrap();
             idents.remove(&ident);
             if idents.is_empty() {
-                self.def_to_ident.remove(&old_def);
+                self.def_to_ident.remove(old_def);
             }
         }
 
