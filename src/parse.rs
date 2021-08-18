@@ -10,35 +10,62 @@ use crate::types::*;
 
 type VerboseError<'a> = nom::error::VerboseError<&'a str>;
 
-fn ident1(i: &str) -> IResult<&str, Ident, VerboseError> {
+fn alphanumeric_ident(i: &str) -> IResult<&str, Ident, VerboseError> {
     let (i, res): (_, Vec<char>) =
         many1(verify(anychar, |x| x.is_alphanumeric() || "'".contains(*x)))(i)?;
     Ok((i, res.into_iter().collect()))
 }
 
-fn ident2(i: &str) -> IResult<&str, Ident, VerboseError> {
+fn symbolic_ident(i: &str) -> IResult<&str, Ident, VerboseError> {
     let (i, res): (_, Vec<char>) =
         many1(verify(anychar, |x| "!@#$%^&*-_=+,./<>?;:'\"[]{}\\|`~".contains(*x)))(i)?;
     Ok((i, res.into_iter().collect()))
 }
 
-const KEYWORDS: &[&str] = &["=", "->", "help", "defs", "reset", "undefine"];
+const KEYWORDS: &[&str] = &["=", "help", "defs", "reset", "undefine", "->", "λ", "\\", "."];
+const SUBSTITUTE_KEYWORDS: &[&str] =
+    &["equals", "help_", "defs_", "reset_", "undefine_", "arrow", "lambda", "backslash", "dot"];
+
+pub fn rename_keywords(ident: Ident) -> Ident {
+    if let Some(index) = KEYWORDS.iter().position(|x| *x == ident) {
+        SUBSTITUTE_KEYWORDS[index].to_owned()
+    } else {
+        ident
+    }
+}
 
 // Identifiers are either alphanumeric, or contain only symbols.
 fn ident(i: &str) -> IResult<&str, Ident, VerboseError> {
-    verify(alt((ident1, ident2)), |ident| !KEYWORDS.contains(&ident))(i)
+    verify(alt((alphanumeric_ident, symbolic_ident)), |ident| !KEYWORDS.contains(&ident))(i)
 }
 
 /// Attempts to parse the input as a function (except the parameter name, which is assumed to
 /// have already been parsed)
-fn try_parse_fn(i: &str) -> IResult<&str, Option<Expr<Ident>>, VerboseError> {
+fn try_parse_arrow_fn(i: &str) -> IResult<&str, Option<Expr<Ident>>, VerboseError> {
     opt(preceded(tuple((multispace0, tag("->"), multispace0)), parse_apply))(i)
+}
+
+fn parse_lambda_fn(i: &str) -> IResult<&str, Expr<Ident>, VerboseError> {
+    let (i, params) = delimited(
+        pair(alt((char('\\'), char('λ'))), multispace0),
+        many1(terminated(ident, multispace0)),
+        pair(char('.'), multispace0),
+    )(i)?;
+    let (i, fn_body) = parse_apply(i)?;
+    assert!(!params.is_empty());
+    let mut params = params.into_iter().rev();
+    let mut res = Expr::f(params.next().unwrap(), fn_body);
+    for param in params {
+        res = Expr::f(param, res);
+    }
+    Ok((i, res))
 }
 
 fn parse_term(i: &str) -> IResult<&str, Expr<Ident>, VerboseError> {
     alt((
         delimited(pair(char('('), multispace0), parse_apply, pair(multispace0, char(')'))),
-        map(pair(ident, try_parse_fn), |(ident, maybe_fn_body)| match maybe_fn_body {
+        parse_lambda_fn,
+        map(pair(ident, try_parse_arrow_fn), |(ident, maybe_fn_body)| match maybe_fn_body {
             None => Expr::Var(ident),
             Some(fn_body) => Expr::f(ident, fn_body),
         }),
@@ -107,6 +134,7 @@ pub mod tests {
         run_parser2(parse_apply, i)
     }
 
+    // TODO: split this into separate tests
     #[test]
     fn parse_test() {
         assert_eq!(run_parser2(ident, "test"), Some("test".to_owned()));
@@ -144,9 +172,9 @@ pub mod tests {
             Some(ReplCommand::Expr(run_parser2(parse_apply, "a -> a").unwrap()))
         );
         assert_eq!(
-            run_parser2(parse_repl_command, ". = f -> g -> x -> f (g x)"),
+            run_parser2(parse_repl_command, "compose = f -> g -> x -> f (g x)"),
             Some(ReplCommand::Def(
-                ".".to_owned(),
+                "compose".to_owned(),
                 run_parser(parse_apply, "f -> g -> x -> f (g x)").unwrap()
             ))
         );
@@ -154,5 +182,24 @@ pub mod tests {
             run_parser2(parse_repl_command, "undefine foo bar"),
             Some(ReplCommand::Undefine(vec!["foo".to_owned(), "bar".to_owned()]))
         );
+
+        assert_eq!(
+            run_parser2(parse_apply, "λa. a"),
+            Some(Expr::f("a".to_owned(), Expr::Var("a".to_owned())))
+        );
+
+        assert_eq!(
+            run_parser2(parse_repl_command, "λa. a"),
+            Some(ReplCommand::Expr(run_parser2(parse_apply, "a -> a").unwrap()))
+        );
+        assert_eq!(
+            run_parser2(parse_repl_command, "compose = λf g x. f (g x)"),
+            Some(ReplCommand::Def(
+                "compose".to_owned(),
+                run_parser(parse_apply, "λf g x. f (g x)").unwrap()
+            ))
+        );
+        assert_eq!(run_parser2(parse_apply, "λa. a"), run_parser2(parse_apply, "\\a. a"));
+        assert_eq!(run_parser2(parse_apply, "λa b. a"), run_parser2(parse_apply, "λa. λb. a"));
     }
 }

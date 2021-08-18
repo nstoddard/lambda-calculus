@@ -5,15 +5,17 @@ use std::collections::*;
 use std::fmt::{self, Display, Formatter};
 use std::rc::Rc;
 
+use crate::parse::*;
 use crate::types::*;
 
 const SUBSTITUTE_DEFS_RECURSION_LIMIT: usize = 100;
 const FIND_MINIMAL_FORM_RECURSION_LIMIT: usize = 100;
 
 // These are slightly below the values that would result in a stack overflow. The limit is much
-// lower in debug builds.
+// lower in debug builds; optimizations appear to significantly reduce stack space usage.
 // These limits should be as high as possible because some lambda calculus expressions can become
 // extremely deeply nested.
+// TODO: consider using a stack data structure rather than using the function call stack
 #[cfg(debug_assertions)]
 const EVAL_RECURSION_LIMIT: u16 = 300;
 #[cfg(not(debug_assertions))]
@@ -100,6 +102,14 @@ impl Expr<Ident> {
                 f.idents_to_indices_inner(ident_to_index),
                 arg.idents_to_indices_inner(ident_to_index),
             ),
+        }
+    }
+
+    pub fn rename_keywords(self) -> Self {
+        match self {
+            Self::Fn(ident, fn_body) => Self::f(rename_keywords(ident), fn_body.rename_keywords()),
+            Self::Var(ident) => Self::Var(rename_keywords(ident)),
+            Self::Apply(a, b) => Self::apply(a.rename_keywords(), b.rename_keywords()),
         }
     }
 }

@@ -1,1 +1,1 @@
-[{"ident":"id","val":{"Fn":["a",{"Var":"a"}]}},{"ident":".","val":{"Fn":["f",{"Fn":["g",{"Fn":["x",{"Apply":[{"Var":"f"},{"Apply":[{"Var":"g"},{"Var":"x"}]}]}]}]}]}}]
+[{"ident":"id","val":{"Fn":["a",{"Var":"a"}]}},{"ident":"compose","val":{"Fn":["f",{"Fn":["g",{"Fn":["x",{"Apply":[{"Var":"f"},{"Apply":[{"Var":"g"},{"Var":"x"}]}]}]}]}]}}]

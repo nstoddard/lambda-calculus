@@ -12,6 +12,14 @@ pub struct Def {
     val: Expr<Ident>,
 }
 
+impl Def {
+    /// Removes all keywords from the defs and replaces them with substitutes that can be parsed
+    /// properly.
+    fn rename_keywords(self) -> Self {
+        Self { ident: rename_keywords(self.ident), val: self.val.rename_keywords() }
+    }
+}
+
 impl Display for Def {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{} = ", self.ident)?;
@@ -65,6 +73,8 @@ impl Defs {
     }
 
     fn from_ordered_defs(ordered_defs: Vec<Def>, modified: bool, is_default: bool) -> Self {
+        let ordered_defs: Vec<_> =
+            ordered_defs.into_iter().map(|def| def.rename_keywords()).collect();
         let ident_to_def: HashMap<_, _> = ordered_defs
             .iter()
             .cloned()

@@ -3,9 +3,9 @@
 
 mod defs;
 mod eval;
+mod help;
 mod parse;
 mod types;
-mod help;
 
 use std::cell::RefCell;
 use std::collections::*;
@@ -18,9 +18,9 @@ use yew::services::storage::*;
 use yew::utils::*;
 
 use defs::*;
+use help::*;
 use parse::*;
 use types::*;
-use help::*;
 
 const EXPR_TRUNCATE_LEN: usize = 200;
 const MAX_HISTORY_LEN: usize = 500;

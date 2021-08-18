@@ -2,22 +2,22 @@
 
 mod defs;
 mod eval;
+mod help;
 mod parse;
 mod types;
-mod help;
 
 use directories_next::*;
 use rustyline::{error::*, Editor};
 use std::collections::*;
 use std::fs::{self, File};
 use std::io::BufWriter;
-use yew::*;
 use yew::virtual_dom::*;
+use yew::*;
 
 use defs::*;
+use help::*;
 use parse::*;
 use types::*;
-use help::*;
 
 const HISTORY_FILENAME: &str = "history.txt";
 const DEFS_FILENAME: &str = "defs2.txt";
