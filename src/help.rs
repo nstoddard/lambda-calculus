@@ -20,7 +20,7 @@ Lambda Calculus is a simple model of computation, with the only data type being 
 This is a small project to experiment with lambda calculus. It's not intended to be useful in production or be feature-complete. It supports two syntaxes for functions:
     Standard lambda calculus syntax: "}<span class="monospace">{"λa. a"}</span>{"
     Arrow syntax: "}<span class="monospace">{"a -> a"}</span>{"
-    You can switch between these two syntaxes at any time. Backslashes ("}<span class="monospace">{'\\'}</span>{") may be used in place of lambda characters.
+    You can use these two syntaxes interchangeably. Backslashes ("}<span class="monospace">{'\\'}</span>{") are automatically converted to lambda characters."}<span class="monospace">{'λ'}</span>{"
 
 Syntax:
     Functions: "} <span class="monospace">{ "λa. a" }</span>

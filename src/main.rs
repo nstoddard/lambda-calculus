@@ -97,6 +97,7 @@ fn main() {
                 if line.trim().is_empty() {
                     continue;
                 }
+                let line = line.replace('\\', "λ");
                 editor.add_history_entry(&line);
                 match run_parser(parse_repl_command, &line) {
                     Ok(ReplCommand::Expr(expr)) => {

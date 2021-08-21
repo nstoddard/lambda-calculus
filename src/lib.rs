@@ -12,7 +12,7 @@ use std::collections::*;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
+use web_sys::{HtmlElement, HtmlInputElement};
 use yew::prelude::*;
 use yew::services::storage::*;
 use yew::utils::*;
@@ -197,6 +197,8 @@ struct LambdaCalculus {
 
     scroll_defs: bool,
     scroll_repl: bool,
+    // Used when replacing backslashes with lambdas
+    selection_range: Option<(u32, u32)>,
 }
 
 impl Component for LambdaCalculus {
@@ -244,13 +246,29 @@ impl Component for LambdaCalculus {
             shown_history_entry: None,
             scroll_defs: true,
             scroll_repl: true,
+            selection_range: None,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::ModifyCurStatement(statement) => {
-                self.cur_statement = statement;
+                let has_backslash = statement.contains('\\');
+                self.cur_statement = statement.replace('\\', "λ");
+                // When an input element is modified by code, the cursor is normally moved to the
+                // end of the input. This code, along with the corresponding code in `rendered()`,
+                // prevents that from happening.
+                if has_backslash {
+                    let input_element = document()
+                        .get_element_by_id("statementInput")
+                        .unwrap()
+                        .dyn_into::<HtmlInputElement>()
+                        .unwrap();
+                    self.selection_range = Some((
+                        input_element.selection_start().unwrap().unwrap(),
+                        input_element.selection_end().unwrap().unwrap(),
+                    ));
+                }
                 true
             }
             Msg::ToggleExprExpanded { i, min } => {
@@ -428,7 +446,7 @@ impl Component for LambdaCalculus {
                         .map(|(i, eval_result)| eval_result.to_html(i, &self.link))
                         .collect::<Html>() }
                     <div class="row">
-                        <input id="statementInput" placeholder="(a -> b -> a) x y" class="monospace"
+                        <input id="statementInput" placeholder="(λa b. a) x y" class="monospace"
                             type="text" autofocus=true value=self.cur_statement.clone()
                             oninput=self.link.callback(|input: InputData| Msg::ModifyCurStatement(input.value))
                             onkeydown=self.link.callback(Msg::KeyDown) />
@@ -458,6 +476,15 @@ impl Component for LambdaCalculus {
             let repl_column = document().get_element_by_id("replColumn").unwrap();
             repl_column.scroll_to_with_x_and_y(0.0, repl_column.scroll_height() as f64);
             self.scroll_repl = false;
+        }
+        if let Some((start, end)) = self.selection_range.take() {
+            document()
+                .get_element_by_id("statementInput")
+                .unwrap()
+                .dyn_into::<HtmlInputElement>()
+                .unwrap()
+                .set_selection_range(start, end)
+                .unwrap();
         }
     }
 }
