@@ -12,7 +12,7 @@ type VerboseError<'a> = nom::error::VerboseError<&'a str>;
 
 fn alphanumeric_ident(i: &str) -> IResult<&str, Ident, VerboseError> {
     let (i, res): (_, Vec<char>) =
-        many1(verify(anychar, |x| x.is_alphanumeric() || "'".contains(*x)))(i)?;
+        many1(verify(anychar, |x| (x.is_alphanumeric() && *x != 'λ') || "'".contains(*x)))(i)?;
     Ok((i, res.into_iter().collect()))
 }
 
