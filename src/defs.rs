@@ -55,7 +55,7 @@ fn insert_def_to_ident(
 impl Defs {
     pub fn from_str(input: &str) -> Self {
         let ordered_defs: Vec<Def> = serde_json::from_str(input).unwrap();
-        Self::from_ordered_defs(ordered_defs, false, input.trim() == DEFAULT_DEFS)
+        Self::from_ordered_defs(ordered_defs, false, input.trim() == DEFAULT_DEFS.trim())
     }
 
     pub fn from_old_defs(input: &str) -> Self {

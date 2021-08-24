@@ -51,6 +51,7 @@ struct DisplayedExpr {
 impl DisplayedExpr {
     fn new(expr: String) -> Self {
         Self {
+            // TODO: this should compute the length in chars, not bytes.
             expanded_state: if expr.len() > EXPR_TRUNCATE_LEN {
                 ExpandedState::NotExpanded
             } else {
