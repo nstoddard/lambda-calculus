@@ -44,9 +44,8 @@ fn html_to_text_inner(x: VNode, res: &mut String) {
             }
         }
         VNode::VText(text) => res.push_str(&text.text),
-        VNode::VComp(_) => (), // TODO
         VNode::VList(list) => html_list_to_text(list, res),
-        VNode::VRef(_) => (), // TODO
+        VNode::VComp(_) | VNode::VRef(_) => (), // Neither of these is relevant to this app
     }
 }
 

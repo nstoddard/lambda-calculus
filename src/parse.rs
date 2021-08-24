@@ -134,43 +134,41 @@ pub mod tests {
         run_parser2(parse_apply, i)
     }
 
-    // TODO: split this into separate tests
+    fn var(x: &str) -> Expr<Ident> {
+        Expr::Var(x.to_owned())
+    }
+
     #[test]
-    fn parse_test() {
+    fn parse_idents() {
         assert_eq!(run_parser2(ident, "test"), Some("test".to_owned()));
         assert_eq!(run_parser2(ident, "test("), None);
         assert_eq!(run_parser2(ident, " "), None);
+    }
 
-        assert_eq!(run_parser2(parse_apply, "test"), Some(Expr::Var("test".to_owned())));
-        assert_eq!(
-            run_parser2(parse_apply, "a b"),
-            Some(Expr::apply(Expr::Var("a".to_owned()), Expr::Var("b".to_owned())))
-        );
+    #[test]
+    fn parse_apply_test() {
+        assert_eq!(run_parser2(parse_apply, "test"), Some(var("test")));
+        assert_eq!(run_parser2(parse_apply, "a b"), Some(Expr::apply(var("a"), var("b"))));
         assert_eq!(
             run_parser2(parse_apply, "a b c"),
-            Some(Expr::apply(
-                Expr::apply(Expr::Var("a".to_owned()), Expr::Var("b".to_owned())),
-                Expr::Var("c".to_owned())
-            ))
+            Some(Expr::apply(Expr::apply(var("a"), var("b")), var("c")))
         );
-        assert_eq!(run_parser2(parse_apply, "(a b) c"), run_parser2(parse_apply, "a b c"),);
-        assert_eq!(run_parser2(parse_apply, "(a b) c)"), None,);
+        assert_eq!(run_parser2(parse_apply, "(a b) c"), run_parser2(parse_apply, "a b c"));
+        assert_eq!(run_parser2(parse_apply, "(a b) c)"), None);
         assert_eq!(
             run_parser2(parse_apply, "a (b c)"),
-            Some(Expr::apply(
-                Expr::Var("a".to_owned()),
-                Expr::apply(Expr::Var("b".to_owned()), Expr::Var("c".to_owned())),
-            ))
+            Some(Expr::apply(var("a"), Expr::apply(var("b"), var("c"))))
         );
+    }
+
+    #[test]
+    fn parse_arrow_syntax() {
+        assert_eq!(run_parser2(parse_apply, "a -> a"), Some(Expr::f("a".to_owned(), var("a"))));
         assert_eq!(
-            run_parser2(parse_apply, "a -> a"),
-            Some(Expr::f("a".to_owned(), Expr::Var("a".to_owned())))
+            run_parser2(parse_apply, "a -> b -> a"),
+            Some(Expr::f("a".to_owned(), Expr::f("b".to_owned(), var("a"))))
         );
 
-        assert_eq!(
-            run_parser2(parse_repl_command, "a -> a"),
-            Some(ReplCommand::Expr(run_parser2(parse_apply, "a -> a").unwrap()))
-        );
         assert_eq!(
             run_parser2(parse_repl_command, "compose = f -> g -> x -> f (g x)"),
             Some(ReplCommand::Def(
@@ -178,14 +176,14 @@ pub mod tests {
                 run_parser(parse_apply, "f -> g -> x -> f (g x)").unwrap()
             ))
         );
-        assert_eq!(
-            run_parser2(parse_repl_command, "undefine foo bar"),
-            Some(ReplCommand::Undefine(vec!["foo".to_owned(), "bar".to_owned()]))
-        );
+    }
 
+    #[test]
+    fn parse_lambda_syntax() {
+        assert_eq!(run_parser2(parse_apply, "λa. a"), Some(Expr::f("a".to_owned(), var("a"))));
         assert_eq!(
-            run_parser2(parse_apply, "λa. a"),
-            Some(Expr::f("a".to_owned(), Expr::Var("a".to_owned())))
+            run_parser2(parse_apply, "λa b. a"),
+            Some(Expr::f("a".to_owned(), Expr::f("b".to_owned(), var("a"))))
         );
 
         assert_eq!(
@@ -201,5 +199,24 @@ pub mod tests {
         );
         assert_eq!(run_parser2(parse_apply, "λa. a"), run_parser2(parse_apply, "\\a. a"));
         assert_eq!(run_parser2(parse_apply, "λa b. a"), run_parser2(parse_apply, "λa. λb. a"));
+    }
+
+    #[test]
+    fn parse_repl_command_test() {
+        assert_eq!(
+            run_parser2(parse_repl_command, "a -> a"),
+            Some(ReplCommand::Expr(run_parser2(parse_apply, "a -> a").unwrap()))
+        );
+        assert_eq!(
+            run_parser2(parse_repl_command, "compose = f -> g -> x -> f (g x)"),
+            Some(ReplCommand::Def(
+                "compose".to_owned(),
+                run_parser(parse_apply, "f -> g -> x -> f (g x)").unwrap()
+            ))
+        );
+        assert_eq!(
+            run_parser2(parse_repl_command, "undefine foo bar"),
+            Some(ReplCommand::Undefine(vec!["foo".to_owned(), "bar".to_owned()]))
+        );
     }
 }
