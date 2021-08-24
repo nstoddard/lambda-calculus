@@ -2,9 +2,9 @@ use hashbag::*;
 use simple_error::*;
 use std::cell::RefCell;
 use std::collections::*;
-use std::fmt::{self, Display, Formatter};
 use std::rc::Rc;
 
+use crate::display::*;
 use crate::parse::*;
 use crate::types::*;
 
@@ -22,38 +22,6 @@ const EVAL_RECURSION_LIMIT: u16 = 300;
 const EVAL_RECURSION_LIMIT: u16 = 3000;
 
 const INTO_NON_LAZY_RECURSION_LIMIT: u16 = 200;
-
-impl Display for Expr<Ident> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            Self::Fn(ident, body) => {
-                write!(f, "{} -> ", ident)?;
-                body.fmt(f)
-            }
-            Self::Var(var) => write!(f, "{}", var),
-            Self::Apply(function, arg) => {
-                let fn_needs_parens = matches!(function.as_ref(), Self::Fn(_, _));
-                if fn_needs_parens {
-                    write!(f, "(")?;
-                }
-                function.fmt(f)?;
-                if fn_needs_parens {
-                    write!(f, ")")?;
-                }
-                write!(f, " ")?;
-                let arg_needs_parens = matches!(arg.as_ref(), Self::Fn(_, _) | Self::Apply(_, _));
-                if arg_needs_parens {
-                    write!(f, "(")?;
-                }
-                arg.fmt(f)?;
-                if arg_needs_parens {
-                    write!(f, ")")?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
 
 impl<Var> Expr<Var> {
     /// Shorthand for creating an `Expr::Fn` without needing to call `Box::new`.
@@ -226,7 +194,11 @@ impl Expr<Var> {
     ///
     /// Returns an error if definitions are too deeply nested (which should only happen if they're
     /// recursive).
-    pub fn substitute_defs(self, defs: &HashMap<Ident, Self>) -> anyhow::Result<Self> {
+    pub fn substitute_defs(
+        self,
+        defs: &HashMap<Ident, Self>,
+        syntax: ExprSyntax,
+    ) -> anyhow::Result<Self> {
         let mut res = self.clone();
         for _ in 0..SUBSTITUTE_DEFS_RECURSION_LIMIT {
             let mut made_changes = false;
@@ -237,7 +209,7 @@ impl Expr<Var> {
         }
         Err(anyhow::Error::new(simple_error!(
             "Recursion limit reached when expanding expression: {}",
-            self.indices_to_idents()
+            self.indices_to_idents().display(syntax)
         )))
     }
 
@@ -286,11 +258,11 @@ impl LazyExpr {
     }
 
     /// Evaluates the expression.
-    pub fn eval(self) -> anyhow::Result<Self> {
-        self.eval_inner(0)
+    pub fn eval(self, syntax: ExprSyntax) -> anyhow::Result<Self> {
+        self.eval_inner(0, syntax)
     }
 
-    fn eval_inner(self, depth: u16) -> anyhow::Result<Self> {
+    fn eval_inner(self, depth: u16, syntax: ExprSyntax) -> anyhow::Result<Self> {
         if depth >= EVAL_RECURSION_LIMIT {
             return Err(anyhow::Error::new(simple_error!(
                 "Recursion limit reached when evaluating expression."
@@ -305,7 +277,7 @@ impl LazyExpr {
                 match thunk {
                     Thunk::Evaluated(expr) => expr.clone(),
                     Thunk::Unevaluated(expr) => {
-                        let new_expr = expr.take().unwrap().eval_inner(depth + 1)?;
+                        let new_expr = expr.take().unwrap().eval_inner(depth + 1, syntax)?;
                         *thunk = Thunk::Evaluated(new_expr.clone());
                         new_expr
                     }
@@ -313,23 +285,24 @@ impl LazyExpr {
             }
             Self::Var(Var::Param(_)) => unreachable!(),
             expr @ Self::Var(Var::Free(_)) => expr,
-            Self::Apply(f, arg) => match f.eval_inner(depth + 1)? {
+            Self::Apply(f, arg) => match f.eval_inner(depth + 1, syntax)? {
                 Self::Fn(_, body) => {
                     let thunk = Rc::new(RefCell::new(Thunk::Unevaluated(Some(*arg))));
                     let body = body.substitute(0, &thunk);
-                    body.eval_inner(depth + 1)?
+                    body.eval_inner(depth + 1, syntax)?
                 }
                 Self::Var(Var::Param(_)) => unreachable!(),
                 Self::Var(Var::Free(ident)) => {
                     return Err(anyhow::Error::new(simple_error!(
                         "Can't apply free variable '{}' to argument '{}'",
                         ident,
-                        arg.into_non_lazy()?.indices_to_idents()
+                        arg.into_non_lazy()?.indices_to_idents().display(syntax)
                     )))
                 }
                 Self::Thunk(_) => unreachable!(),
                 apply @ Self::Apply(_, _) => {
-                    Self::apply(apply.eval_inner(depth + 1)?, *arg).eval_inner(depth + 1)?
+                    Self::apply(apply.eval_inner(depth + 1, syntax)?, *arg)
+                        .eval_inner(depth + 1, syntax)?
                 }
             },
         })

@@ -18,17 +18,18 @@ Lambda Calculus is a simple model of computation, with the only data type being 
 {", or many other sources.
 
 This is a small project to experiment with lambda calculus. It's not intended to be useful in production or be feature-complete. It supports two syntaxes for functions:
-    Standard lambda calculus syntax: "}<span class="monospace">{"λa. a"}</span>{"
-    Arrow syntax: "}<span class="monospace">{"a -> a"}</span>{"
-    You can use these two syntaxes interchangeably. Backslashes ("}<span class="monospace">{'\\'}</span>{") are automatically converted to lambda characters."}<span class="monospace">{'λ'}</span>{"
+    Standard lambda calculus syntax: "}<span class="monospace box2">{"λa. a"}</span>{"
+    Arrow syntax: "}<span class="monospace box2">{"a -> a"}</span>{"
+    You can use these two syntaxes interchangeably.
+    Backslashes ("}<span class="monospace box2">{'\\'}</span>{") are automatically converted to lambda characters ("}<span class="monospace box2">{'λ'}</span>{").
 
 Syntax:
-    Functions: "} <span class="monospace">{ "λa. a" }</span>
-        {" or "} <span class="monospace">{ "a -> a" }</span>
-    {"\n    Function application: "} <span class="monospace">{ "(λa b. a) x y" }</span>
-        {" or "} <span class="monospace">{"(a -> b -> a) x y"}</span>
-    {"\n    Definitions: "} <span class="monospace">{ "id = λa. a" }</span>
-        {" or "} <span class="monospace">{"id = a -> a"}</span>
+    Functions: "} <span class="monospace box2">{ "λa. a" }</span>
+        {" or "} <span class="monospace box2">{ "a -> a" }</span>
+    {"\n    Function application: "} <span class="monospace box2">{ "(λa b. a) x y" }</span>
+        {" or "} <span class="monospace box2">{"(a -> b -> a) x y"}</span>
+    {"\n    Definitions: "} <span class="monospace box2">{ "id = λa. a" }</span>
+        {" or "} <span class="monospace box2">{"id = a -> a"}</span>
 {"
 
 Names can either be alphanumeric (and unlike in most languages, can start with a digit), or contain only symbols (most ASCII characters are allowed).

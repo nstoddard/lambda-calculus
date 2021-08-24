@@ -2,6 +2,7 @@
 #![recursion_limit = "1024"]
 
 mod defs;
+mod display;
 mod eval;
 mod help;
 mod parse;
@@ -18,6 +19,7 @@ use yew::services::storage::*;
 use yew::utils::*;
 
 use defs::*;
+use display::*;
 use help::*;
 use parse::*;
 use types::*;
@@ -31,6 +33,7 @@ enum Msg {
     KeyDown(KeyboardEvent),
     ToggleExprExpanded { i: usize, min: bool },
     ShowHelp,
+    SwitchSyntax,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -107,19 +110,20 @@ impl EvalResult {
         input: String,
         expr: Expr<Var>,
         defs_lookup: &HashMap<Expr<Var>, HashSet<Ident>>,
+        syntax: ExprSyntax,
     ) -> Self {
         let min_expr = expr.clone().find_minimal_form(defs_lookup);
         if min_expr != expr {
             EvalResult::Expr {
                 input,
-                min: Some(DisplayedExpr::new(format!("{}", min_expr.indices_to_idents()))),
-                full: DisplayedExpr::new(format!("{}", expr.indices_to_idents())),
+                min: Some(DisplayedExpr::new(min_expr.indices_to_idents().display(syntax))),
+                full: DisplayedExpr::new(expr.indices_to_idents().display(syntax)),
             }
         } else {
             EvalResult::Expr {
                 input,
                 min: None,
-                full: DisplayedExpr::new(format!("{}", expr.indices_to_idents())),
+                full: DisplayedExpr::new(expr.indices_to_idents().display(syntax)),
             }
         }
     }
@@ -169,6 +173,8 @@ struct PersistentData {
     defs: Defs,
     history: Vec<String>,
     history_modified: bool,
+    syntax: ExprSyntax,
+    syntax_modified: bool,
 }
 
 impl PersistentData {
@@ -180,6 +186,9 @@ impl PersistentData {
         }
         if self.history_modified {
             storage.store("history", Ok(self.history.join("\n")));
+        }
+        if self.syntax_modified {
+            storage.store("syntax", Ok(serde_json::to_string(&self.syntax).unwrap()));
         }
     }
 }
@@ -220,14 +229,24 @@ impl Component for LambdaCalculus {
         } else {
             vec![]
         };
+        let syntax = if let Ok(input) = storage.restore("syntax") {
+            serde_json::from_str(&input).unwrap()
+        } else {
+            ExprSyntax::Lambda
+        };
 
         let mut eval_results = vec![];
         if defs.is_default() || defs.is_empty() {
             eval_results.push(EvalResult::Help);
         }
 
-        let persistent_data =
-            Rc::new(RefCell::new(PersistentData { defs, history, history_modified: false }));
+        let persistent_data = Rc::new(RefCell::new(PersistentData {
+            defs,
+            history,
+            history_modified: false,
+            syntax,
+            syntax_modified: false,
+        }));
         let persistent_data2 = persistent_data.clone();
 
         let unload_handler = Closure::wrap(Box::new(move || {
@@ -356,16 +375,21 @@ impl Component for LambdaCalculus {
                 }
                 match run_parser(parse_repl_command, &input) {
                     Ok(ReplCommand::Expr(expr)) => {
+                        let syntax = self.persistent_data.borrow().syntax;
                         let res = expr
                             .idents_to_indices()
-                            .substitute_defs(self.persistent_data.borrow().defs.ident_to_def())
-                            .and_then(|expr| expr.into_lazy().eval())
+                            .substitute_defs(
+                                self.persistent_data.borrow().defs.ident_to_def(),
+                                syntax,
+                            )
+                            .and_then(|expr| expr.into_lazy().eval(syntax))
                             .and_then(|expr| expr.into_non_lazy());
                         self.eval_results.push(match res {
                             Ok(expr) => EvalResult::new(
                                 input,
                                 expr,
                                 self.persistent_data.borrow().defs.def_to_ident(),
+                                self.persistent_data.borrow().syntax,
                             ),
                             Err(err) => {
                                 EvalResult::Err { input: Some(input), err: format!("{}", err) }
@@ -378,7 +402,12 @@ impl Component for LambdaCalculus {
                         let defs = &mut persistent_data.defs;
                         defs.add(ident.clone(), expr);
                         let expr = defs[&ident].clone();
-                        let displayed_expr = EvalResult::new(input, expr, defs.def_to_ident());
+                        let displayed_expr = EvalResult::new(
+                            input,
+                            expr,
+                            defs.def_to_ident(),
+                            self.persistent_data.borrow().syntax,
+                        );
                         self.eval_results.push(displayed_expr);
                     }
                     Ok(ReplCommand::PrintDefs) => {
@@ -426,6 +455,14 @@ impl Component for LambdaCalculus {
                 self.eval_results.push(EvalResult::Help);
                 true
             }
+            Msg::SwitchSyntax => {
+                let syntax = &mut self.persistent_data.borrow_mut().syntax;
+                *syntax = match syntax {
+                    ExprSyntax::Lambda => ExprSyntax::Arrow,
+                    ExprSyntax::Arrow => ExprSyntax::Lambda,
+                };
+                true
+            }
         }
     }
 
@@ -434,11 +471,12 @@ impl Component for LambdaCalculus {
     }
 
     fn view(&self) -> Html {
+        let syntax = self.persistent_data.borrow().syntax;
         html! {
             <>
                 <div id="defsColumn">
                     { self.persistent_data.borrow().defs.accessible_defs().iter().map(|def| html! {
-                        <div class="monospace box shrinkBorder">{def}</div>
+                        <div class="monospace box shrinkBorder">{def.display(syntax)}</div>
                     }).collect::<Html>() }
                 </div>
                 <div id="replColumn">
@@ -450,7 +488,8 @@ impl Component for LambdaCalculus {
                             type="text" autofocus=true value=self.cur_statement.clone()
                             oninput=self.link.callback(|input: InputData| Msg::ModifyCurStatement(input.value))
                             onkeydown=self.link.callback(Msg::KeyDown) />
-                        <button onclick=self.link.callback(|_| Msg::ShowHelp)>{"Help"}</button>
+                        <button class="uiButton" onclick=self.link.callback(|_| Msg::ShowHelp)>{"Help"}</button>
+                        <button class="uiButton" onclick=self.link.callback(|_| Msg::SwitchSyntax)>{"Toggle syntax"}</button>
                     </div>
                 </div>
             </>

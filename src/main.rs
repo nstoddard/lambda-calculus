@@ -1,6 +1,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 mod defs;
+mod display;
 mod eval;
 mod help;
 mod parse;
@@ -15,6 +16,7 @@ use yew::virtual_dom::*;
 use yew::*;
 
 use defs::*;
+use display::*;
 use help::*;
 use parse::*;
 use types::*;
@@ -54,12 +56,20 @@ fn html_list_to_text(list: VList, res: &mut String) {
     }
 }
 
-fn print_expr(expr: Expr<Var>, defs_lookup: &HashMap<Expr<Var>, HashSet<Ident>>) {
+fn print_expr(
+    expr: Expr<Var>,
+    defs_lookup: &HashMap<Expr<Var>, HashSet<Ident>>,
+    syntax: ExprSyntax,
+) {
     let min_expr = expr.clone().find_minimal_form(defs_lookup);
     if min_expr != expr {
-        println!("{}\t\t({})", min_expr.indices_to_idents(), expr.indices_to_idents());
+        println!(
+            "{}\t\t({})",
+            min_expr.indices_to_idents().display(syntax),
+            expr.indices_to_idents().display(syntax)
+        );
     } else {
-        println!("{}", expr.indices_to_idents());
+        println!("{}", expr.indices_to_idents().display(syntax));
     }
 }
 
@@ -91,6 +101,8 @@ fn main() {
         print_help();
     }
 
+    let syntax = ExprSyntax::Lambda; // TODO: make this customizable
+
     loop {
         match editor.readline("> ") {
             Ok(line) => {
@@ -103,18 +115,18 @@ fn main() {
                     Ok(ReplCommand::Expr(expr)) => {
                         let res = expr
                             .idents_to_indices()
-                            .substitute_defs(defs.ident_to_def())
-                            .and_then(|expr| expr.into_lazy().eval())
+                            .substitute_defs(defs.ident_to_def(), syntax)
+                            .and_then(|expr| expr.into_lazy().eval(syntax))
                             .and_then(|expr| expr.into_non_lazy());
                         match res {
-                            Ok(expr) => print_expr(expr, defs.def_to_ident()),
+                            Ok(expr) => print_expr(expr, defs.def_to_ident(), syntax),
                             Err(err) => println!("{}", err),
                         }
                     }
                     Ok(ReplCommand::Def(ident, expr)) => {
                         defs.add(ident.clone(), expr);
                         let expr = defs[&ident].clone();
-                        print_expr(expr, defs.def_to_ident());
+                        print_expr(expr, defs.def_to_ident(), syntax);
                     }
                     Ok(ReplCommand::PrintDefs) => {
                         let defs = defs.accessible_defs();
@@ -122,7 +134,7 @@ fn main() {
                             println!("Nothing has been defined yet.");
                         } else {
                             for def in defs {
-                                println!("{}", def);
+                                println!("{}", def.display(syntax));
                             }
                         }
                     }

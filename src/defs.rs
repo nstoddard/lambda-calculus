@@ -1,8 +1,8 @@
 use serde::*;
 use std::collections::*;
-use std::fmt::{self, Display, Formatter};
 use std::io::Write;
 
+use crate::display::*;
 use crate::parse::*;
 use crate::types::*;
 
@@ -18,12 +18,9 @@ impl Def {
     fn rename_keywords(self) -> Self {
         Self { ident: rename_keywords(self.ident), val: self.val.rename_keywords() }
     }
-}
 
-impl Display for Def {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{} = ", self.ident)?;
-        self.val.fmt(f)
+    pub fn display(&self, syntax: ExprSyntax) -> String {
+        format!("{} = {}", self.ident, self.val.display(syntax))
     }
 }
 
