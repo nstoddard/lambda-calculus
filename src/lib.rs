@@ -399,15 +399,12 @@ impl Component for LambdaCalculus {
                     Ok(ReplCommand::Def(ident, expr)) => {
                         self.scroll_defs = true;
                         let mut persistent_data = self.persistent_data.borrow_mut();
+                        let syntax = persistent_data.syntax;
                         let defs = &mut persistent_data.defs;
                         defs.add(ident.clone(), expr);
                         let expr = defs[&ident].clone();
-                        let displayed_expr = EvalResult::new(
-                            input,
-                            expr,
-                            defs.def_to_ident(),
-                            self.persistent_data.borrow().syntax,
-                        );
+                        let displayed_expr =
+                            EvalResult::new(input, expr, defs.def_to_ident(), syntax);
                         self.eval_results.push(displayed_expr);
                     }
                     Ok(ReplCommand::PrintDefs) => {

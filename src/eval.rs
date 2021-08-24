@@ -343,7 +343,7 @@ mod tests {
             .unwrap()
             .idents_to_indices()
             .into_lazy()
-            .eval()
+            .eval(ExprSyntax::Lambda)
             .ok()
             .and_then(|expr| expr.into_non_lazy().ok())
     }
