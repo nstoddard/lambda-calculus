@@ -7,9 +7,7 @@ pub fn help_html() -> Html {
 // These multiline string literals have to be aligned to the left or each line
 // ends up with extra spaces at the start.
 // TODO: find a better way to produce this help text; maybe generate it from markdown
-{"Lambda Calculus interpreter, by Nathan Stoddard
-    
-Lambda Calculus is a simple model of computation, with the only data type being functions that take one argument and return one result. Despite its simplicity, it's Turing-complete. For more information about it, see the "}
+{"Lambda Calculus is a simple model of computation, with the only data type being functions that take one argument and return one result. Despite its simplicity, it's Turing-complete. For more information about it, see the "}
 <a href="https://en.wikipedia.org/wiki/Lambda_calculus">{"Wikipedia page"}</a>
 {", the "}
 <a href="https://en.wikibooks.org/wiki/Programming_Languages/Semantics_Specification#The_Built-in_Operations_of_Lambda_Calculus">
@@ -18,8 +16,8 @@ Lambda Calculus is a simple model of computation, with the only data type being 
 {", or many other sources.
 
 This is a small project to experiment with lambda calculus. It's not intended to be useful in production or be feature-complete. It supports two syntaxes for functions:
-    Standard lambda calculus syntax: "}<span class="monospace box2">{"λa. a"}</span>{"
-    Arrow syntax: "}<span class="monospace box2">{"a -> a"}</span>{"
+    Standard lambda calculus syntax: "}<span class="monospace box2">{"(λa b. a) x y"}</span>{"
+    Arrow syntax: "}<span class="monospace box2">{"(a -> b -> a) x y"}</span>{"
     You can use these two syntaxes interchangeably.
     Backslashes ("}<span class="monospace box2">{'\\'}</span>{") are automatically converted to lambda characters ("}<span class="monospace box2">{'λ'}</span>{").
 
