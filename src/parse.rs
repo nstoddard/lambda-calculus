@@ -75,7 +75,7 @@ fn parse_term(i: &str) -> IResult<&str, Expr<Ident>, VerboseError> {
 fn parse_apply(i: &str) -> IResult<&str, Expr<Ident>, VerboseError> {
     // Function application is left-associative; e.g. "a b c" is equivalent to "(a b) c"
     let (i, f) = parse_term(i)?;
-    fold_many0(preceded(multispace0, parse_term), f, Expr::apply)(i)
+    fold_many0(preceded(multispace0, parse_term), move || f.clone(), Expr::apply)(i)
 }
 
 pub fn parse_def(i: &str) -> IResult<&str, (Ident, Expr<Ident>), VerboseError> {
@@ -90,7 +90,7 @@ pub fn parse_repl_command(i: &str) -> IResult<&str, ReplCommand, VerboseError> {
         map(
             preceded(
                 tag("undefine"),
-                fold_many0(preceded(multispace0, ident), vec![], |mut xs, x| {
+                fold_many0(preceded(multispace0, ident), Vec::new, |mut xs, x| {
                     xs.push(x);
                     xs
                 }),
