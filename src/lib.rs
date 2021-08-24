@@ -87,7 +87,7 @@ impl DisplayedExpr {
                             { if self.expanded_state == ExpandedState::Expanded {"▼"} else {"▶"} }
                         </button>
                         { if self.expanded_state == ExpandedState::NotExpanded {
-                            format!("{}...", &self.expr[0..EXPR_TRUNCATE_LEN])
+                            format!("{}...", &self.expr.chars().take(EXPR_TRUNCATE_LEN).collect::<String>())
                         } else {
                             self.expr.clone()
                         } }
