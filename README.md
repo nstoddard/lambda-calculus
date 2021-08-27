@@ -8,4 +8,4 @@ This was tested in Firefox and Chrome, on Linux. It should also work on other op
 
 Screenshot of how booleans might be defined:
 
-![Screenshot](screenshots/Screenshot 2021-08-26 at 17-33-32 Lambda calculus interpreter.png)
+![Screenshot](https://github.com/nstoddard/lambda-calculus/blob/main/screenshots/Screenshot%202021-08-26%20at%2017-33-32%20Lambda%20calculus%20interpreter.png)
