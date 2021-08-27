@@ -5,3 +5,7 @@ This is a small project to experiment with lambda calculus. It's not intended to
 This app also has a command-line version; to run it, clone this repo and run `cargo run`. To compile and run the online version yourself, install [`wasm-bindgen`](https://github.com/rustwasm/wasm-bindgen), run `./build-debug.sh`, and use a web server to serve the `static/` directory. Release builds (`./build-release.sh`) also require [`wasm-opt`](https://github.com/WebAssembly/binaryen) and [`terser`](https://github.com/terser-js/terser).
 
 This was tested in Firefox and Chrome, on Linux. It should also work on other operating systems, and may or may not work in other browsers. If there's any problems, please file an issue.
+
+Screenshot of how booleans might be defined:
+
+![Screenshot](screenshots/Screenshot 2021-08-26 at 17-33-32 Lambda calculus interpreter.png)
