@@ -10,15 +10,10 @@ use crate::types::*;
 
 type VerboseError<'a> = nom::error::VerboseError<&'a str>;
 
-fn alphanumeric_ident(i: &str) -> IResult<&str, Ident, VerboseError> {
-    let (i, res): (_, Vec<char>) =
-        many1(verify(anychar, |x| (x.is_alphanumeric() && *x != 'λ') || "'".contains(*x)))(i)?;
-    Ok((i, res.into_iter().collect()))
-}
-
-fn symbolic_ident(i: &str) -> IResult<&str, Ident, VerboseError> {
-    let (i, res): (_, Vec<char>) =
-        many1(verify(anychar, |x| "!@#$%^&*-_=+,./<>?;:'\"[]{}\\|`~".contains(*x)))(i)?;
+fn ident_or_keyword(i: &str) -> IResult<&str, Ident, VerboseError> {
+    let (i, res): (_, Vec<char>) = many1(verify(anychar, |x| {
+        (x.is_alphanumeric() && *x != 'λ') || "!@#$%^&*-=+,/<>?;:'\"[]{}\\|`~".contains(*x)
+    }))(i)?;
     Ok((i, res.into_iter().collect()))
 }
 
@@ -45,9 +40,8 @@ pub fn rename_keywords(ident: Ident) -> Ident {
     }
 }
 
-// Identifiers are either alphanumeric, or contain only symbols.
 fn ident(i: &str) -> IResult<&str, Ident, VerboseError> {
-    verify(alt((alphanumeric_ident, symbolic_ident)), |ident| !KEYWORDS.contains(&ident))(i)
+    verify(ident_or_keyword, |ident| !KEYWORDS.contains(&ident))(i)
 }
 
 /// Attempts to parse the input as a function (except the parameter name, which is assumed to
@@ -155,6 +149,7 @@ pub mod tests {
         assert_eq!(run_parser2(ident, "test"), Some("test".to_owned()));
         assert_eq!(run_parser2(ident, "test("), None);
         assert_eq!(run_parser2(ident, " "), None);
+        assert_eq!(run_parser2(ident, "foo-bar"), Some("foo-bar".to_owned()));
     }
 
     #[test]

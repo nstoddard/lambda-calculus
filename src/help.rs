@@ -32,7 +32,7 @@ Syntax:
         {" or "}<span class="monospace box2">{"simplify a -> (b -> c -> b) (d -> d)" }</span>
 {"
 
-Names can either be alphanumeric (and unlike in most languages, can start with a digit), or contain only symbols (most ASCII characters are allowed).
+Variable names can contain letters, digits, and most symbols (most ASCII characters are allowed, except those used in other syntax).
 Definitions are substituted into expressions before evaluation, so they can't be used for recursion.
 The output of evaluating an expression is typically displayed twice: a minimal form in terms of definitions where possible, followed by the full expression (if different).
 
