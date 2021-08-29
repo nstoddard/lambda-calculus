@@ -12,7 +12,7 @@ type VerboseError<'a> = nom::error::VerboseError<&'a str>;
 
 fn ident_or_keyword(i: &str) -> IResult<&str, Ident, VerboseError> {
     let (i, res): (_, Vec<char>) = many1(verify(anychar, |x| {
-        (x.is_alphanumeric() && *x != 'λ') || "!@#$%^&*-=+,/<>?;:'\"[]{}\\|`~".contains(*x)
+        !x.is_whitespace() && !"λ\\()._".contains(*x)
     }))(i)?;
     Ok((i, res.into_iter().collect()))
 }
@@ -150,6 +150,7 @@ pub mod tests {
         assert_eq!(run_parser2(ident, "test("), None);
         assert_eq!(run_parser2(ident, " "), None);
         assert_eq!(run_parser2(ident, "foo-bar"), Some("foo-bar".to_owned()));
+        assert_eq!(run_parser2(ident, "→"), Some("→".to_owned()));
     }
 
     #[test]
