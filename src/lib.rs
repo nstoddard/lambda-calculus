@@ -396,6 +396,29 @@ impl Component for LambdaCalculus {
                             }
                         })
                     }
+                    Ok(ReplCommand::Simplify(expr)) => {
+                        let syntax = self.persistent_data.borrow().syntax;
+                        let res = expr
+                            .idents_to_indices()
+                            .substitute_defs(
+                                self.persistent_data.borrow().defs.ident_to_def(),
+                                syntax,
+                            )
+                            .and_then(|expr| expr.into_lazy().eval(syntax))
+                            .and_then(|expr| expr.into_non_lazy())
+                            .and_then(|expr| expr.simplify());
+                        self.eval_results.push(match res {
+                            Ok(expr) => EvalResult::new(
+                                input,
+                                expr,
+                                self.persistent_data.borrow().defs.def_to_ident(),
+                                self.persistent_data.borrow().syntax,
+                            ),
+                            Err(err) => {
+                                EvalResult::Err { input: Some(input), err: format!("{}", err) }
+                            }
+                        })
+                    }
                     Ok(ReplCommand::Def(ident, expr)) => {
                         self.scroll_defs = true;
                         let mut persistent_data = self.persistent_data.borrow_mut();

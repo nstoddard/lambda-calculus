@@ -122,6 +122,18 @@ fn main() {
                             Err(err) => println!("{}", err),
                         }
                     }
+                    Ok(ReplCommand::Simplify(expr)) => {
+                        let res = expr
+                            .idents_to_indices()
+                            .substitute_defs(defs.ident_to_def(), syntax)
+                            .and_then(|expr| expr.into_lazy().eval(syntax))
+                            .and_then(|expr| expr.into_non_lazy())
+                            .and_then(|expr| expr.simplify());
+                        match res {
+                            Ok(expr) => print_expr(expr, defs.def_to_ident(), syntax),
+                            Err(err) => println!("{}", err),
+                        }
+                    }
                     Ok(ReplCommand::Def(ident, expr)) => {
                         defs.add(ident.clone(), expr);
                         let expr = defs[&ident].clone();

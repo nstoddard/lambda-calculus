@@ -22,12 +22,14 @@ This is a small project to experiment with lambda calculus. It's not intended to
     Backslashes ("}<span class="monospace box2">{'\\'}</span>{") are automatically converted to lambda characters ("}<span class="monospace box2">{'λ'}</span>{").
 
 Syntax:
-    Functions: "} <span class="monospace box2">{ "λa. a" }</span>
-        {" or "} <span class="monospace box2">{ "a -> a" }</span>
+    Functions: "}<span class="monospace box2">{ "λa. a" }</span>
+        {" or "}<span class="monospace box2">{ "a -> a" }</span>
     {"\n    Function application: "} <span class="monospace box2">{ "(λa b. a) x y" }</span>
-        {" or "} <span class="monospace box2">{"(a -> b -> a) x y"}</span>
-    {"\n    Definitions: "} <span class="monospace box2">{ "id = λa. a" }</span>
-        {" or "} <span class="monospace box2">{"id = a -> a"}</span>
+        {" or "}<span class="monospace box2">{"(a -> b -> a) x y"}</span>
+    {"\n    Definitions: "}<span class="monospace box2">{ "id = λa. a" }</span>
+        {" or "}<span class="monospace box2">{"id = a -> a"}</span>
+    {"\n    Simplification: "}<span class="monospace box2">{ "simplify λa. (λb c. b) (λd. d)" }</span>
+        {" or "}<span class="monospace box2">{"simplify a -> (b -> c -> b) (d -> d)" }</span>
 {"
 
 Names can either be alphanumeric (and unlike in most languages, can start with a digit), or contain only symbols (most ASCII characters are allowed).
@@ -37,6 +39,7 @@ The output of evaluating an expression is typically displayed twice: a minimal f
 Commands:
     help: display this help info
     reset: remove all definitions
+    simplify foo: reduce 'foo' to a simpler form, if possible
     undefine foo: remove the definition for 'foo'
     defs: display everything that has been defined (only needed in the desktop version)
 

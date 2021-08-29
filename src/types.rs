@@ -12,6 +12,7 @@ pub enum ReplCommand {
     PrintHelp,
     ResetDefs,
     Undefine(Vec<Ident>),
+    Simplify(Expr<Ident>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]

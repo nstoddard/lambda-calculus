@@ -22,9 +22,20 @@ fn symbolic_ident(i: &str) -> IResult<&str, Ident, VerboseError> {
     Ok((i, res.into_iter().collect()))
 }
 
-const KEYWORDS: &[&str] = &["=", "help", "defs", "reset", "undefine", "->", "λ", "\\", "."];
-const SUBSTITUTE_KEYWORDS: &[&str] =
-    &["equals", "help_", "defs_", "reset_", "undefine_", "arrow", "lambda", "backslash", "dot"];
+const KEYWORDS: &[&str] =
+    &["=", "help", "defs", "reset", "undefine", "->", "λ", "\\", ".", "simplify"];
+const SUBSTITUTE_KEYWORDS: &[&str] = &[
+    "equals",
+    "help_",
+    "defs_",
+    "reset_",
+    "undefine_",
+    "arrow",
+    "lambda",
+    "backslash",
+    "dot",
+    "simplify_",
+];
 
 pub fn rename_keywords(ident: Ident) -> Ident {
     if let Some(index) = KEYWORDS.iter().position(|x| *x == ident) {
@@ -97,6 +108,7 @@ pub fn parse_repl_command(i: &str) -> IResult<&str, ReplCommand, VerboseError> {
             ),
             ReplCommand::Undefine,
         ),
+        map(preceded(tag("simplify"), preceded(multispace0, parse_apply)), ReplCommand::Simplify),
         map(parse_def, |(ident, expr)| ReplCommand::Def(ident, expr)),
         map(parse_apply, ReplCommand::Expr),
     ))(i)
@@ -217,6 +229,10 @@ pub mod tests {
         assert_eq!(
             run_parser2(parse_repl_command, "undefine foo bar"),
             Some(ReplCommand::Undefine(vec!["foo".to_owned(), "bar".to_owned()]))
+        );
+        assert_eq!(
+            run_parser2(parse_repl_command, "simplify foo"),
+            Some(ReplCommand::Simplify(run_parser2(parse_apply, "foo").unwrap()))
         );
     }
 }

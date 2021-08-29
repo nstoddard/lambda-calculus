@@ -241,6 +241,86 @@ impl Expr<Var> {
             ),
         })
     }
+
+    pub fn simplify(self) -> anyhow::Result<Self> {
+        self.simplify_inner(0)
+    }
+
+    fn simplify_inner(self, depth: u16) -> anyhow::Result<Self> {
+        if depth >= EVAL_RECURSION_LIMIT {
+            return Err(anyhow::Error::new(simple_error!(
+                "Recursion limit reached when simplifying expression."
+            )));
+        }
+        Ok(match self {
+            Self::Fn(param, body) => Self::f(param, body.simplify_inner(depth + 1)?),
+            expr @ Self::Var(Var::Param(_)) => expr,
+            expr @ Self::Var(Var::Free(_)) => expr,
+            Self::Apply(f, arg) => match f.simplify_inner(depth + 1)? {
+                Self::Fn(_, body) => {
+                    let arg = arg.simplify_inner(depth + 1)?;
+                    let body = body.substitute(0, &arg);
+                    body.simplify_inner(depth + 1)?
+                }
+                expr @ Self::Var(Var::Param(_)) => {
+                    Self::apply(expr, arg.simplify_inner(depth + 1)?)
+                }
+                Self::Var(Var::Free(ident)) => {
+                    return Err(anyhow::Error::new(simple_error!(
+                        "Can't apply free variable '{}' as a function",
+                        ident
+                    )))
+                }
+                apply @ Self::Apply(_, _) => {
+                    // The regular `eval()` function has an additional evaluation here, but
+                    // since this function doesn't always reduce function application to a different
+                    // type of term, if the extra evaluation were done here it would result in
+                    // infinite recursion in many simple cases.
+                    Self::apply(apply.simplify_inner(depth + 1)?, *arg)
+                }
+            },
+        })
+    }
+
+    /// Replaces the parameter at the given depth with the given value.
+    fn substitute(self, depth: Index, val: &Self) -> Self {
+        match self {
+            Self::Fn(param, body) => Self::f(param, body.substitute(depth + 1, val)),
+            Self::Var(Var::Param(cur_depth)) => {
+                if cur_depth == depth {
+                    val.clone().increase_depth(depth, 0)
+                } else if cur_depth > depth {
+                    Self::Var(Var::Param(cur_depth - 1))
+                } else {
+                    Self::Var(Var::Param(cur_depth))
+                }
+            }
+            expr @ Self::Var(Var::Free(_)) => expr,
+            Self::Apply(f, arg) => {
+                Self::apply(f.substitute(depth, val), arg.substitute(depth, val))
+            }
+        }
+    }
+
+    fn increase_depth(self, depth_increase: Index, cur_depth: Index) -> Self {
+        match self {
+            Self::Fn(param, body) => {
+                Self::f(param, body.increase_depth(depth_increase, cur_depth + 1))
+            }
+            Self::Var(Var::Param(depth2)) => {
+                if depth2 >= cur_depth {
+                    Self::Var(Var::Param(depth2 + depth_increase))
+                } else {
+                    Self::Var(Var::Param(depth2))
+                }
+            }
+            expr @ Self::Var(_) => expr,
+            Self::Apply(f, arg) => Self::apply(
+                f.increase_depth(depth_increase, cur_depth),
+                arg.increase_depth(depth_increase, cur_depth),
+            ),
+        }
+    }
 }
 
 impl LazyExpr {
@@ -348,7 +428,10 @@ mod tests {
             .and_then(|expr| expr.into_non_lazy().ok())
     }
 
-    // TODO: add more tests
+    fn simplify_expr(i: &str) -> Option<Expr<Var>> {
+        eval_expr(i).and_then(|expr| expr.simplify().ok())
+    }
+
     #[test]
     fn eval_test() {
         assert_eq!(eval_expr("(a -> a) x"), eval_expr("x"));
@@ -362,5 +445,12 @@ mod tests {
         assert_eq!(eval_expr("(a -> a a) (b -> b)"), eval_expr("b -> b"));
 
         assert_eq!(eval_expr("(a -> a a) (a -> a a)"), None);
+    }
+
+    #[test]
+    fn simplify_test() {
+        assert_eq!(simplify_expr("λa. (λb. a) a"), eval_expr("λa. a"));
+        assert_eq!(simplify_expr("λa. (λb c. b) a"), eval_expr("λa c. a"));
+        assert_eq!(simplify_expr("λa. (λb c. b) (λd. d)"), eval_expr("λa c d. d"));
     }
 }
