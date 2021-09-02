@@ -254,8 +254,7 @@ impl Expr<Var> {
         }
         Ok(match self {
             Self::Fn(param, body) => Self::f(param, body.simplify_inner(depth + 1)?),
-            expr @ Self::Var(Var::Param(_)) => expr,
-            expr @ Self::Var(Var::Free(_)) => expr,
+            expr @ Self::Var(_) => expr,
             Self::Apply(f, arg) => {
                 let arg = arg.simplify_inner(depth + 1)?;
                 match f.simplify_inner(depth + 1)? {
@@ -270,13 +269,7 @@ impl Expr<Var> {
                             ident
                         )))
                     }
-                    apply @ Self::Apply(_, _) => {
-                        // The regular `eval()` function has an additional evaluation here, but
-                        // since this function doesn't always reduce function application to a different
-                        // type of term, if the extra evaluation were done here it would result in
-                        // infinite recursion in many simple cases.
-                        Self::apply(apply.simplify_inner(depth + 1)?, arg)
-                    }
+                    apply @ Self::Apply(_, _) => Self::apply(apply, arg),
                 }
             }
         })
@@ -380,10 +373,7 @@ impl LazyExpr {
                     )))
                 }
                 Self::Thunk(_) => unreachable!(),
-                apply @ Self::Apply(_, _) => {
-                    Self::apply(apply.eval_inner(depth + 1, syntax)?, *arg)
-                        .eval_inner(depth + 1, syntax)?
-                }
+                Self::Apply(_, _) => unreachable!(),
             },
         })
     }
