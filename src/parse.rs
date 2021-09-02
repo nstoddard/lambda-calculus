@@ -11,9 +11,8 @@ use crate::types::*;
 type VerboseError<'a> = nom::error::VerboseError<&'a str>;
 
 fn ident_or_keyword(i: &str) -> IResult<&str, Ident, VerboseError> {
-    let (i, res): (_, Vec<char>) = many1(verify(anychar, |x| {
-        !x.is_whitespace() && !"λ\\()._".contains(*x)
-    }))(i)?;
+    let (i, res): (_, Vec<char>) =
+        many1(verify(anychar, |x| !x.is_whitespace() && !"λ\\()._".contains(*x)))(i)?;
     Ok((i, res.into_iter().collect()))
 }
 

@@ -256,29 +256,29 @@ impl Expr<Var> {
             Self::Fn(param, body) => Self::f(param, body.simplify_inner(depth + 1)?),
             expr @ Self::Var(Var::Param(_)) => expr,
             expr @ Self::Var(Var::Free(_)) => expr,
-            Self::Apply(f, arg) => match f.simplify_inner(depth + 1)? {
-                Self::Fn(_, body) => {
-                    let arg = arg.simplify_inner(depth + 1)?;
-                    let body = body.substitute(0, &arg);
-                    body.simplify_inner(depth + 1)?
+            Self::Apply(f, arg) => {
+                let arg = arg.simplify_inner(depth + 1)?;
+                match f.simplify_inner(depth + 1)? {
+                    Self::Fn(_, body) => {
+                        let body = body.substitute(0, &arg);
+                        body.simplify_inner(depth + 1)?
+                    }
+                    expr @ Self::Var(Var::Param(_)) => Self::apply(expr, arg),
+                    Self::Var(Var::Free(ident)) => {
+                        return Err(anyhow::Error::new(simple_error!(
+                            "Can't apply free variable '{}' as a function",
+                            ident
+                        )))
+                    }
+                    apply @ Self::Apply(_, _) => {
+                        // The regular `eval()` function has an additional evaluation here, but
+                        // since this function doesn't always reduce function application to a different
+                        // type of term, if the extra evaluation were done here it would result in
+                        // infinite recursion in many simple cases.
+                        Self::apply(apply.simplify_inner(depth + 1)?, arg)
+                    }
                 }
-                expr @ Self::Var(Var::Param(_)) => {
-                    Self::apply(expr, arg.simplify_inner(depth + 1)?)
-                }
-                Self::Var(Var::Free(ident)) => {
-                    return Err(anyhow::Error::new(simple_error!(
-                        "Can't apply free variable '{}' as a function",
-                        ident
-                    )))
-                }
-                apply @ Self::Apply(_, _) => {
-                    // The regular `eval()` function has an additional evaluation here, but
-                    // since this function doesn't always reduce function application to a different
-                    // type of term, if the extra evaluation were done here it would result in
-                    // infinite recursion in many simple cases.
-                    Self::apply(apply.simplify_inner(depth + 1)?, *arg)
-                }
-            },
+            }
         })
     }
 
@@ -452,5 +452,9 @@ mod tests {
         assert_eq!(simplify_expr("λa. (λb. a) a"), eval_expr("λa. a"));
         assert_eq!(simplify_expr("λa. (λb c. b) a"), eval_expr("λa c. a"));
         assert_eq!(simplify_expr("λa. (λb c. b) (λd. d)"), eval_expr("λa c d. d"));
+        assert_eq!(
+            simplify_expr("λn. (n (λa. a) ((λx f. f x x) (λa. a)))"),
+            eval_expr("λn. (n (λa. a) (λf. f (λa. a) (λa. a)))")
+        );
     }
 }
